@@ -227,6 +227,54 @@ def test_personal_preset_selection():
         check(not plugin._user_presets, "插件卸载时清理个人预设")
 
 
+def test_input_validation_and_feedback():
+    print("输入校验与转换反馈：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(
+            object(),
+            {"api_base": "http://example.test", "api_key": "sk-test", "cooldown": 30},
+        )
+        event = FakeEvent("user-input")
+        calls = []
+
+        async def fake_generate(*args):
+            calls.append(args)
+            return ("fake",)
+
+        plugin._generate_and_send = fake_generate
+
+        invalid = run_draw(plugin, event, "9 white dress")
+        check(invalid[0][0] == "plain" and "1~8" in invalid[0][1], "越界快捷编号被拒绝")
+        check(not calls and "user-input" not in plugin._user_presets, "越界编号不生成也不保存")
+
+        async def no_tags(*args, **kwargs):
+            return "", "未能识别中文描述，请改用英文标签"
+
+        with patch("astrbot_plugin_nai_draw.main.to_tags", new=no_tags):
+            failed = run_draw(plugin, event, "青龙偃月刀")
+        check("指令已生效" in failed[0][1], "转换前仍即时反馈指令状态")
+        check(failed[-1][0] == "plain" and "改用英文" in failed[-1][1], "无可用标签时返回明确失败")
+        check(not calls, "无可用标签时不调用生成链路")
+        check("user-input" not in plugin._last_call, "转换失败后释放冷却")
+
+        async def translated_with_note(*args, **kwargs):
+            return "1girl, long hair", "未识别部分已忽略：青龙偃月刀"
+
+        with patch(
+            "astrbot_plugin_nai_draw.main.to_tags", new=translated_with_note
+        ):
+            result = run_draw(plugin, event, "长发女孩拿着青龙偃月刀")
+        check(result[1][0] == "plain" and result[1][1].startswith("[提示]"), "转换说明反馈给用户")
+        check(result[-1] == ("fake",), "有可用标签时继续生成")
+        check(calls[-1][1] == "1girl, long hair", "生成链路使用转换后的标签")
+
+        plugin._last_call.clear()
+        fallback = run_draw(plugin, event, "-尺寸 999x999 1girl")
+        check("尺寸 999x999 不可用" in fallback[1][1], "参数回退说明反馈给用户")
+        check(fallback[-1] == ("fake",) and calls[-1][3] == "832x1216", "参数回退后使用实际尺寸生成")
+
+
 def test_nsfw_command():
     print("个人 NSFW 指令：")
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -357,6 +405,7 @@ def main():
         test_config_and_parse,
         test_cooldown_reservation,
         test_personal_preset_selection,
+        test_input_validation_and_feedback,
         test_nsfw_command,
         test_failure_releases_cooldown,
         test_variant_rotation,

@@ -160,30 +160,40 @@ def contains_chinese(text):
 def translate_by_lexicon(text):
     """用词典替换中文片段，返回 (标签串, 未识别的中文残留)。
 
-    命中的键会从原文中移除，剩余中文即词典未覆盖的部分。
+    命中的键会从原文中移除，剩余中文即词典未覆盖的部分；输入中原有的
+    英文标签会一并保留，避免中英混写时丢失用户已经写好的标签。
     """
     remaining = str(text or "")
     matched = []
     for key in _SORTED_KEYS:
         if key in remaining:
             matched.append(LEXICON[key])
-            remaining = remaining.replace(key, " ")
+            # 用分隔符占位，避免相邻英文片段在移除中文后粘成一个错误标签。
+            remaining = remaining.replace(key, ",")
+
+    # 去掉未识别中文，仅提取用户原本写入的英文标签。中文标点和换行都视为
+    # 标签分隔符，ASCII 冒号保留给 artist:xxx 与 NAI 数值权重语法。
+    english_text = re.sub(r"[一-鿿]+", ",", remaining)
+    english_text = re.sub(r"[，、。；;：！!？?\r\n\t]+", ",", english_text)
+    existing = [
+        part.strip()
+        for part in english_text.split(",")
+        if part.strip() and re.search(r"[a-z0-9]", part, re.I)
+    ]
 
     # 去重并保持首次出现顺序
     tags = []
     seen = set()
-    for chunk in matched:
+    for chunk in (*matched, *existing):
         for tag in chunk.split(","):
             tag = tag.strip()
-            if tag and tag not in seen:
-                seen.add(tag)
+            normalized = tag.lower()
+            if tag and normalized not in seen:
+                seen.add(normalized)
                 tags.append(tag)
 
-    # 剩余内容里剔除标点与空白，只留真正未识别的中文
-    leftover = re.sub(r"[，,。、；;：:！!？?\s（）()\[\]【】]+", " ", remaining).strip()
-    leftover_cn = " ".join(
-        part for part in leftover.split() if contains_chinese(part)
-    )
+    # 只提取连续中文片段，避免无空格混写时把两侧英文一起交给 LLM。
+    leftover_cn = " ".join(re.findall(r"[一-鿿]+", remaining))
     return ", ".join(tags), leftover_cn
 
 
@@ -289,10 +299,10 @@ async def to_tags(context, text, use_llm=True):
                 merged = ", ".join(part for part in (lexicon_tags, llm_tags) if part)
                 return merged, f"已智能翻译：{leftover}"
         if not lexicon_tags:
-            # 词典与 LLM 均未命中，原样送出并提示
-            return raw, "未能识别中文描述，建议改用英文标签"
+            # NAI 不识别中文，返回空标签交由命令层终止，避免浪费生成额度。
+            return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
         return lexicon_tags, f"未识别部分已忽略：{leftover}"
 
     if not lexicon_tags:
-        return raw, "未能识别中文描述，建议改用英文标签"
+        return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
     return lexicon_tags, ""

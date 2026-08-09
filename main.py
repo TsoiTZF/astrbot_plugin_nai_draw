@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.3.0
+"""AstrBot 叶子的逼插件 v1.4.0
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -30,7 +30,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.3.0")
+@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.4.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -232,8 +232,12 @@ class NaiDrawPlugin(Star):
         quick_match = QUICK_PRESET_PATTERN.match(raw)
         if quick_match:
             selected = resolve_preset(quick_match.group(1))
-            if selected:
-                self._user_presets[sender_id] = selected
+            if not selected:
+                yield event.plain_result(
+                    f"[失败] 预设编号范围是 1~{len(PRESETS)}，请发送 /nai预设 查看。"
+                )
+                return
+            self._user_presets[sender_id] = selected
 
         remaining, preset_key, size, warning = self._parse_args(
             raw, self._user_presets.get(sender_id)
@@ -272,6 +276,13 @@ class NaiDrawPlugin(Star):
             return
         if note:
             warning = "；".join(part for part in (warning, note) if part)
+        if not str(description or "").strip():
+            self._clear_cooldown(sender_id, reservation)
+            detail = warning or "没有可用于绘图的英文标签"
+            yield event.plain_result(f"[失败] {detail}。")
+            return
+        if warning:
+            yield event.plain_result(f"[提示] {warning}")
 
         yield await self._generate_and_send(
             event, description, preset_key, size, warning, sender_id, reservation

@@ -97,6 +97,18 @@ def test_lexicon():
     check("long hair" in tags, "混合输入仍命中已知词")
     check("青龙偃月刀" in leftover, "未知中文进入残留")
 
+    tags, leftover = translate_by_lexicon("1girl, 长发, blue eyes")
+    check("1girl" in tags and "blue eyes" in tags, "中英混写保留原有英文标签")
+    check("long hair" in tags and leftover == "", "中英混写仍翻译已知中文")
+
+    tags, leftover = translate_by_lexicon("1girl 青龙偃月刀 blue eyes")
+    check("1girl" in tags and "blue eyes" in tags, "未知中文不吞掉两侧英文标签")
+    check("青龙偃月刀" in leftover, "中英混写保留未知中文残留")
+
+    tags, leftover = translate_by_lexicon("1girl青龙偃月刀blue eyes")
+    check("1girl" in tags and "blue eyes" in tags, "无空格混写仍保留英文标签")
+    check(leftover == "青龙偃月刀", "无空格混写只提取中文残留")
+
     # 标点不应进入残留
     _, leftover = translate_by_lexicon("长发，女孩。")
     check(leftover == "", "标点不计入残留")
@@ -177,7 +189,15 @@ def test_to_tags():
 
         # 完全无法识别
         tags, note = await to_tags(None, "青龙偃月刀", use_llm=False)
+        check(tags == "", "全未识别时不把原始中文送给 NAI")
         check("建议" in note, "全未识别时给出建议")
+
+        # 未知中文和英文并存时保留可用英文
+        tags, note = await to_tags(
+            None, "1girl, 青龙偃月刀, blue eyes", use_llm=False
+        )
+        check("1girl" in tags and "blue eyes" in tags, "混合输入保留可用英文")
+        check("忽略" in note, "混合输入提示未知中文已忽略")
 
         # 空输入
         tags, note = await to_tags(None, "", use_llm=False)

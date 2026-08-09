@@ -1,0 +1,102 @@
+{
+    "api_base": {
+        "description": "API 地址",
+        "type": "string",
+        "hint": "OpenAI 兼容的图像生成端点前缀，不含 /v1/images/generations。例如 http://example.com:3000",
+        "default": ""
+    },
+    "api_key": {
+        "description": "API 密钥",
+        "type": "string",
+        "hint": "必填。以 sk- 开头的访问令牌。",
+        "default": ""
+    },
+    "model": {
+        "description": "模型名称",
+        "type": "string",
+        "hint": "NovelAI 模型标识，默认 nai-diffusion-4-5-full。",
+        "default": "nai-diffusion-4-5-full"
+    },
+    "default_size": {
+        "description": "默认尺寸",
+        "type": "string",
+        "hint": "宽x高，须为 64 的倍数。竖构图 832x1216，方图 832x832，横构图 1216x832。",
+        "default": "832x1216",
+        "options": [
+            "832x1216",
+            "832x832",
+            "1216x832",
+            "1024x1024"
+        ]
+    },
+    "default_preset": {
+        "description": "默认画风预设",
+        "type": "string",
+        "hint": "管理面板选择英文键；聊天命令可使用 /nai预设 显示的数字编号。",
+        "default": "laowuyang",
+        "options": [
+            "laowuyang",
+            "hiten",
+            "pop",
+            "ghostblade",
+            "mature",
+            "watercolor",
+            "retro",
+            "oil"
+        ]
+    },
+    "timeout": {
+        "description": "请求超时秒数",
+        "type": "int",
+        "hint": "单次生成的最长等待时间。",
+        "default": 180
+    },
+    "retries": {
+        "description": "失败重试次数",
+        "type": "int",
+        "hint": "网络异常或上游暂时不可用时的最大尝试次数，范围 1~5。",
+        "default": 3
+    },
+    "retry_backoff": {
+        "description": "重试退避秒数",
+        "type": "int",
+        "hint": "重试之间的指数退避基数，范围 0~8 秒；0 表示立即重试。",
+        "default": 1
+    },
+    "cooldown": {
+        "description": "用户冷却秒数",
+        "type": "int",
+        "hint": "同一用户两次绘画之间的最小间隔，0 表示不限制。",
+        "default": 15
+    },
+    "max_concurrent": {
+        "description": "最大并发数",
+        "type": "int",
+        "hint": "同时进行的生成任务上限，避免打满上游配额。",
+        "default": 2
+    },
+    "allow_nsfw": {
+        "description": "允许 NSFW",
+        "type": "bool",
+        "hint": "个人未执行 /nainsfw 时使用的默认值；关闭时会在负面提示词中加入 nsfw/nude 等压制标签。",
+        "default": false
+    },
+    "keep_images": {
+        "description": "保留出图文件",
+        "type": "bool",
+        "hint": "关闭时只保留最近 20 张图片；开启后不自动清理历史图片。",
+        "default": false
+    },
+    "extra_negative": {
+        "description": "追加负面提示词",
+        "type": "string",
+        "hint": "会拼接到内置负面词之后，逗号分隔。",
+        "default": ""
+    },
+    "llm_translate": {
+        "description": "中文智能翻译",
+        "type": "bool",
+        "hint": "开启后，内置词典未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签。关闭则仅用词典，未识别部分被忽略。",
+        "default": true
+    }
+}

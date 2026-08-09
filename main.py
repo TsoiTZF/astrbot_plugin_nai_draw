@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.2.1
+"""AstrBot 叶子的逼插件 v1.3.0
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -8,6 +8,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api import logger
 import asyncio
 import math
+import random
 import re
 import time
 
@@ -21,6 +22,7 @@ from .presets import (
     preset_help,
     resolve_preset,
     resolve_size,
+    variant_count,
 )
 
 # 参数前缀：用户可用 -风格 / -尺寸 指定，其余文本作为画面描述
@@ -28,7 +30,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.2.1")
+@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.3.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -38,6 +40,7 @@ class NaiDrawPlugin(Star):
         self._last_call = {}
         self._user_presets = {}
         self._user_nsfw = {}
+        self._variant_positions = {}
         self._data_dir = StarTools.get_data_dir("astrbot_plugin_nai_draw")
         self._out_dir = self._data_dir / "output"
         self._out_dir.mkdir(parents=True, exist_ok=True)
@@ -323,6 +326,17 @@ class NaiDrawPlugin(Star):
         if reservation is None or self._last_call.get(key) == reservation:
             self._last_call.pop(key, None)
 
+    def _next_variant_index(self, sender_id, preset_key):
+        """按用户和预设推进组合序号，保证一个周期内不重复。"""
+        key = (str(sender_id), preset_key)
+        count = variant_count(preset_key)
+        previous = self._variant_positions.get(key)
+        current = (
+            random.randrange(count) if previous is None else (previous + 1) % count
+        )
+        self._variant_positions[key] = current
+        return current
+
     # ==================== 生成与发送 ====================
 
     async def _generate_and_send(
@@ -340,11 +354,17 @@ class NaiDrawPlugin(Star):
         if reservation is None:
             reservation = time.time()
             self._last_call[sender_id] = reservation
-        prompt = build_prompt(preset_key, description)
+        # 画师主力与五官逐次轮换，face_negative 用于压制其余变体特征。
+        variant_index = self._next_variant_index(sender_id, preset_key)
+        prompt, face_negative = build_prompt(
+            preset_key, description, index=variant_index
+        )
         negative = build_negative(
             preset_key,
             self._allow_nsfw(sender_id),
             self.config.get("extra_negative", ""),
+            face_negative,
+            description,
         )
 
         label = PRESETS[preset_key]["label"]
@@ -410,4 +430,5 @@ class NaiDrawPlugin(Star):
         self._last_call.clear()
         self._user_presets.clear()
         self._user_nsfw.clear()
+        self._variant_positions.clear()
         logger.info("[叶子的逼] 插件已卸载")

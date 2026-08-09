@@ -248,8 +248,16 @@ def test_nsfw_command():
             generate=lambda *args, **kwargs: b"fake-image"
         )
 
-        def fake_build_negative(preset_key, allow_nsfw, extra):
+        def fake_build_negative(
+            preset_key,
+            allow_nsfw,
+            extra,
+            face_negative="",
+            user_text="",
+        ):
             captured["allow_nsfw"] = allow_nsfw
+            captured["face_negative"] = face_negative
+            captured["user_text"] = user_text
             return "negative"
 
         with patch(
@@ -267,6 +275,9 @@ def test_nsfw_command():
                 )
             )
         check(captured.get("allow_nsfw") is True, "生成链路使用个人开启状态")
+        # 五官排他负面词须一路传到负面词组装，否则脸型分化失效
+        check(bool(captured.get("face_negative")), "生成链路透传五官排他负面词")
+        check(captured.get("user_text") == "1girl", "生成链路透传用户描述用于冲突剔除")
 
         closed = asyncio.run(plugin.cmd_nsfw(user, "关"))
         check("已关闭" in closed[1] and plugin._allow_nsfw("user-nsfw") is False, "关闭指令成功")
@@ -303,6 +314,41 @@ def test_failure_releases_cooldown():
         check(not plugin._last_call, "失败后释放冷却状态")
 
 
+def test_variant_rotation():
+    print("脸型组合轮换：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(object(), {})
+        preset_module = importlib.import_module("astrbot_plugin_nai_draw.presets")
+        count = preset_module.variant_count("laowuyang")
+
+        with patch("astrbot_plugin_nai_draw.main.random.randrange", return_value=0):
+            indexes = [
+                plugin._next_variant_index("user-a", "laowuyang")
+                for _ in range(count + 1)
+            ]
+            other_first = plugin._next_variant_index("user-b", "laowuyang")
+
+        check(indexes[:-1] == list(range(count)), "完整周期按顺序遍历且不重复")
+        check(indexes[-1] == 0, "周期结束后回到首个组合")
+        check(other_first == 0, "不同用户拥有独立轮换状态")
+
+        combinations = [
+            preset_module.pick_variant("laowuyang", index=index)
+            for index in indexes
+        ]
+        check(
+            all(
+                left[0] != right[0] and left[1] != right[1]
+                for left, right in zip(combinations, combinations[1:])
+            ),
+            "生产轮换相邻画师和五官均不同",
+        )
+
+        asyncio.run(plugin.terminate())
+        check(not plugin._variant_positions, "插件卸载时清理轮换状态")
+
+
 def main():
     print("=" * 56)
     print("NAI 绘画插件主流程测试")
@@ -313,6 +359,7 @@ def main():
         test_personal_preset_selection,
         test_nsfw_command,
         test_failure_releases_cooldown,
+        test_variant_rotation,
     ):
         func()
         print()

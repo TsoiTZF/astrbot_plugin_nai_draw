@@ -8,6 +8,7 @@ import sys
 
 from presets import (
     BASE_NEGATIVE,
+    NO_PRESET_KEY,
     PRESET_ORDER,
     PRESETS,
     QUALITY,
@@ -16,8 +17,10 @@ from presets import (
     describes_face,
     pick_variant,
     preset_help,
+    preset_number,
     resolve_preset,
     resolve_size,
+    sanitize_artist_string,
     variant_count,
 )
 
@@ -38,7 +41,9 @@ def test_resolve_preset():
     check(resolve_preset("1") == "laowuyang", "编号 1 命中首个预设")
     check(resolve_preset(" 3 ") == "pop", "编号 3 忽略首尾空格")
     check(resolve_preset(str(len(PRESET_ORDER))) == "oil", "末尾编号命中")
-    check(resolve_preset("0") is None, "编号 0 不可用")
+    check(resolve_preset("0") == NO_PRESET_KEY, "编号 0 选择无预设")
+    check(resolve_preset("不用预设") == NO_PRESET_KEY, "中文名称选择无预设")
+    check(preset_number(NO_PRESET_KEY) == 0, "无预设显示编号 0")
     check(resolve_preset(str(len(PRESET_ORDER) + 1)) is None, "越界编号不可用")
     check(resolve_preset("hiten") == "hiten", "英文键直接命中")
     check(resolve_preset("HITEN") == "hiten", "大写不敏感")
@@ -79,6 +84,38 @@ def test_build_prompt():
     empty, _ = build_prompt("laowuyang", "", index=0)
     check(QUALITY in empty, "描述为空仍产出有效提示词")
     check(not empty.endswith(", "), "无尾随逗号")
+
+    no_preset, no_preset_neg = build_prompt(
+        NO_PRESET_KEY,
+        "1girl, white dress",
+        index=0,
+        custom_artist="{artist:wlop}",
+    )
+    check("{artist:wlop}" in no_preset, "无预设可使用个人画师串")
+    check(no_preset.index("artist:") < no_preset.index(QUALITY), "个人画师串在质量词之前")
+    check("1girl, white dress" in no_preset, "无预设保留用户描述")
+    check(no_preset_neg == "", "无预设不产生脸型排他负面词")
+
+
+def test_artist_sanitization():
+    print("个人画师串清洗：")
+    tags, rejected = sanitize_artist_string(
+        "wlop, {artist:guweiz}, 1.2::artist:sakimichan::, wlop"
+    )
+    check(tags[0] == "artist:wlop", "裸英文画师名自动补 artist 前缀")
+    check("{artist:guweiz}" in tags, "保留花括号画师权重")
+    check("1.2::artist:sakimichan::" in tags, "保留合法数值权重")
+    check(len(tags) == 3 and rejected == 0, "画师标签保序去重")
+
+    tags, rejected = sanitize_artist_string(
+        "2.0::artist:bad::, {artist:broken], 普通描述, artist:valid"
+    )
+    check(tags == ("artist:valid",), "无效画师标签被剔除")
+    check(rejected == 3, "统计超权重、括号错误和非画师输入")
+
+    tags, rejected = sanitize_artist_string("artist:a, artist:b, artist:c", max_tags=2)
+    check(tags == ("artist:a", "artist:b"), "画师数量上限生效")
+    check(rejected == 1, "超量画师计入忽略数量")
 
 
 def test_variation():
@@ -153,6 +190,29 @@ def test_variation():
     check("{{tsurime}}" in auto, "未写五官时注入变体")
     check(bool(auto_neg), "未写五官时产出排他负面词")
 
+    disabled, disabled_neg = build_prompt(
+        "mature",
+        "1girl, white dress",
+        index=0,
+        include_face=False,
+    )
+    check(
+        PRESETS["mature"]["artist_variants"][0] in disabled,
+        "关闭自动脸型仍保留画师串",
+    )
+    check("1girl, white dress" in disabled, "关闭自动脸型仍保留用户描述")
+    check("{{tsurime}}" not in disabled, "关闭自动脸型不注入五官正面词")
+    check(disabled_neg == "", "关闭自动脸型不注入五官排他负面词")
+
+    disabled_negative = build_negative(
+        "mature",
+        face_negative="big eyes, round face",
+        include_face=False,
+    )
+    check("round face" not in disabled_negative.lower(), "关闭自动脸型移除预设脸型负面词")
+    check("chubby cheeks" not in disabled_negative.lower(), "关闭自动脸型移除预设五官负面词")
+    check("childlike" in disabled_negative.lower(), "关闭自动脸型保留非脸部年龄约束")
+
     print("变体选择：")
     artist_a, face_a, neg_a = pick_variant("mature", index=0)
     artist_b, face_b, neg_b = pick_variant("mature", index=0)
@@ -201,14 +261,21 @@ def test_preset_integrity():
     print("预设数据完整性：")
     check(len(PRESETS) >= 8, f"预设数量充足（{len(PRESETS)} 个）")
     check(len(PRESET_ORDER) == len(set(PRESET_ORDER)), "数字顺序无重复项")
-    check(set(PRESET_ORDER) == set(PRESETS), "所有预设均有稳定编号")
+    check(
+        set(PRESET_ORDER) == set(PRESETS) - {NO_PRESET_KEY},
+        "原 1~8 预设编号保持稳定",
+    )
     for key, data in PRESETS.items():
         check("label" in data and bool(data["label"]), f"{key} 有中文标签")
         check(
             bool(data.get("artist_variants")), f"{key} 有画师变体池"
         )
         check("style" in data, f"{key} 有风格词字段")
-        check(bool(data.get("faces")), f"{key} 有五官变体池")
+        if key == NO_PRESET_KEY:
+            check(data["artist_variants"] == ("",), "无预设不注入预设画师串")
+            check(not data["style"] and not data.get("faces"), "无预设不注入风格和脸型")
+        else:
+            check(bool(data.get("faces")), f"{key} 有五官变体池")
 
     print("权重安全性：")
     import re as _re
@@ -245,6 +312,8 @@ def test_preset_integrity():
 def test_preset_help():
     print("预设帮助：")
     text = preset_help()
+    check("0 = 无预设 [none]" in text, "显示 0 号无预设")
+    check("/nai画师 添加" in text, "显示个人画师入口")
     check("1 = 老五样（通用美脸） [laowuyang]" in text, "显示首个预设编号")
     check("厚涂油画 [oil]" in text, "显示末尾预设")
     check(text.startswith("可用画风预设"), "首行为标题")
@@ -262,6 +331,7 @@ def main():
         test_resolve_preset,
         test_resolve_size,
         test_build_prompt,
+        test_artist_sanitization,
         test_variation,
         test_build_negative,
         test_preset_integrity,

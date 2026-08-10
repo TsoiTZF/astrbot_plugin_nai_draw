@@ -26,6 +26,8 @@ import re
 
 # NAI4.5 质量词，与 NAI3/SD 体系不通用
 QUALITY = "amazing quality, very aesthetic, absurdres"
+NO_PRESET_KEY = "none"
+MAX_CUSTOM_ARTISTS = 12
 
 # 通用负面词。前段压制未完成感，中段为常规崩坏防护。
 # very displeasing 与 bad quality 是 NAI 自带美学评分标签，对成品率影响最大。
@@ -40,6 +42,14 @@ BASE_NEGATIVE = (
 
 # 关闭 allow_nsfw 时追加
 NSFW_NEGATIVE = "{{nude}}, {{nsfw}}, {{explicit}}, nipples, sex"
+
+ARTIST_TOKEN_PATTERN = re.compile(
+    r"^(?:(?P<weight>\d+(?:\.\d+)?)::)?"
+    r"(?P<prefix>[{[]*)"
+    r"artist:(?P<name>[a-z0-9][a-z0-9_ .()'+-]{0,95})"
+    r"(?P<suffix>[]}]*)(?P<weighted_end>::)?$",
+    re.I,
+)
 
 # 只匹配完整标签或明确脸型短语，避免 slippers、machine、surface 等普通词误判。
 FACE_PATTERN = re.compile(
@@ -149,6 +159,13 @@ def _with_hiten(variants):
 
 
 PRESETS = {
+    NO_PRESET_KEY: {
+        "label": "无预设",
+        "artist_variants": ("",),
+        "style": "",
+        "faces": (),
+        "negative": "",
+    },
     "laowuyang": {
         "label": "老五样（通用美脸）",
         "artist_variants": LAOWUYANG_VARIANTS,
@@ -309,14 +326,81 @@ def resolve_preset(name):
         return None
     key = str(name).strip().lower()
     if key.isdecimal():
+        if int(key) == 0:
+            return NO_PRESET_KEY
         index = int(key) - 1
         return PRESET_ORDER[index] if 0 <= index < len(PRESET_ORDER) else None
+    if key in {"无", "不用预设", "不使用预设"}:
+        return NO_PRESET_KEY
     if key in PRESETS:
         return key
     for preset_key, data in PRESETS.items():
         if key == data["label"].lower() or key in data["label"]:
             return preset_key
     return None
+
+
+def preset_number(preset_key):
+    """返回聊天中显示的预设编号，无预设固定为 0。"""
+    if preset_key == NO_PRESET_KEY:
+        return 0
+    return PRESET_ORDER.index(preset_key) + 1
+
+
+def sanitize_artist_string(text, max_tags=MAX_CUSTOM_ARTISTS):
+    """解析个人画师串，返回 (合法标签元组, 被拒数量)。"""
+    raw = str(text or "").strip()
+    if not raw:
+        return (), 0
+
+    accepted = []
+    seen = set()
+    rejected = 0
+    for part in re.split(r"[,，;；\r\n]+", raw):
+        token = part.strip()
+        if not token:
+            continue
+        if "artist:" not in token.lower() and re.fullmatch(
+            r"[a-z0-9][a-z0-9_()'+-]{0,95}", token, re.I
+        ):
+            token = f"artist:{token}"
+        if len(token) > 128:
+            rejected += 1
+            continue
+
+        match = ARTIST_TOKEN_PATTERN.fullmatch(token)
+        if not match:
+            rejected += 1
+            continue
+
+        prefix = match.group("prefix")
+        suffix = match.group("suffix")
+        expected_suffix = "".join(
+            "}" if char == "{" else "]" for char in reversed(prefix)
+        )
+        if len(prefix) > 3 or suffix != expected_suffix:
+            rejected += 1
+            continue
+
+        weight = match.group("weight")
+        weighted_end = match.group("weighted_end")
+        if bool(weight) != bool(weighted_end):
+            rejected += 1
+            continue
+        if weight and not (0 < float(weight) <= 1.5):
+            rejected += 1
+            continue
+
+        normalized = token.lower()
+        if normalized in seen:
+            continue
+        if len(accepted) >= max(1, int(max_tags)):
+            rejected += 1
+            continue
+        seen.add(normalized)
+        accepted.append(token)
+
+    return tuple(accepted), rejected
 
 
 def resolve_size(text, fallback="832x1216"):
@@ -392,6 +476,18 @@ def _remove_face_conflicts(negative, user_text):
     return ", ".join(token for token in kept if token)
 
 
+def _remove_face_constraints(negative):
+    """删除预设负面词中的全部脸部约束，保留其他风格和质量压制词。"""
+    kept = []
+    for token in str(negative or "").split(","):
+        normalized = _normalize_tag(token)
+        if normalized and describes_face(normalized):
+            continue
+        if token.strip():
+            kept.append(token.strip())
+    return ", ".join(kept)
+
+
 def variant_count(preset_key):
     """返回预设可遍历的画师与五官笛卡尔积数量。"""
     preset = PRESETS[preset_key]
@@ -423,20 +519,36 @@ def pick_variant(preset_key, index=None):
     return artist, face[0], face[1]
 
 
-def build_prompt(preset_key, user_text, year_tag="year 2024", index=None):
+def build_prompt(
+    preset_key,
+    user_text,
+    year_tag="year 2024",
+    index=None,
+    include_face=True,
+    custom_artist="",
+):
     """组装正面提示词：画师串 + 年份 + 质量词 + 风格词 + 五官 + 用户描述。
 
     年份标签用于定位 NAI4.5 训练数据版本，缺失会混入旧数据画风。
+    include_face 为假时保留画师串轮换，但不注入自动五官及其排他负面词。
+    custom_artist 为当前用户通过聊天设置的额外画师串。
     返回 (提示词, 五官排他负面词)，后者需交给 build_negative 一并使用。
     """
     preset = PRESETS[preset_key]
     artists, face, face_negative = pick_variant(preset_key, index)
 
-    # 用户自定五官时放弃变体注入，其排他负面词同样不生效
-    if user_text and describes_face(user_text):
+    # 显式关闭或用户自定五官时放弃变体注入，排他负面词同样不生效。
+    if not include_face or (user_text and describes_face(user_text)):
         face, face_negative = "", ""
 
-    segments = [artists, year_tag, QUALITY, preset["style"], face]
+    segments = [
+        artists,
+        str(custom_artist or "").strip(),
+        year_tag,
+        QUALITY,
+        preset["style"],
+        face,
+    ]
     if user_text:
         segments.append(user_text.strip())
     return ", ".join(part for part in segments if part), face_negative
@@ -448,18 +560,24 @@ def build_negative(
     extra="",
     face_negative="",
     user_text="",
+    include_face=True,
 ):
     """组装负面提示词，并剔除与当前风格冲突的条目。
 
     face_negative 由 build_prompt 返回，用于压制其余五官变体的特征。
     用户明确指定脸部特征时，同名预设负面词会被删除，避免正负对撞。
+    include_face 为假时，预设内置的脸部约束也会删除。
     """
     preset = PRESETS[preset_key]
     items = [BASE_NEGATIVE]
-    preset_negative = _remove_face_conflicts(preset.get("negative", ""), user_text)
+    preset_negative = preset.get("negative", "")
+    if include_face:
+        preset_negative = _remove_face_conflicts(preset_negative, user_text)
+    else:
+        preset_negative = _remove_face_constraints(preset_negative)
     if preset_negative:
         items.append(preset_negative)
-    if face_negative:
+    if include_face and face_negative:
         items.append(str(face_negative).strip())
     if not allow_nsfw:
         items.append(NSFW_NEGATIVE)
@@ -480,13 +598,16 @@ def build_negative(
 def preset_help():
     """生成预设清单文本。"""
     lines = ["可用画风预设（发送 /nai 数字 即可选择）："]
+    lines.append("0 = 无预设 [none]，仅使用质量词、个人画师串和画面描述")
     for index, key in enumerate(PRESET_ORDER, start=1):
         preset = PRESETS[key]
         count = variant_count(key)
         lines.append(f"{index} = {preset['label']} [{key}]，{count} 种脸型组合")
     lines.append("")
+    lines.append("无预设：/nai 0 或 /nai 0 长发女孩")
     lines.append("只选择预设：/nai 1")
     lines.append("选择并绘图：/nai 1 长发女孩")
+    lines.append("个人画师：/nai画师 添加 artist:名称")
     lines.append("尺寸：竖图 / 方图 / 横图 / 大图，或直接写 832x1216")
     lines.append("每次出图自动轮换画师主力与五官，想固定脸型就在描述里写五官。")
     return "\n".join(lines)

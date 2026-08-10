@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.4.0
+"""AstrBot 叶子的逼插件 v1.5.0
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -15,13 +15,16 @@ import time
 from .nai_api import NaiAPI, NaiAPIError
 from .translator import to_tags
 from .presets import (
+    MAX_CUSTOM_ARTISTS,
     PRESET_ORDER,
     PRESETS,
     build_negative,
     build_prompt,
     preset_help,
+    preset_number,
     resolve_preset,
     resolve_size,
+    sanitize_artist_string,
     variant_count,
 )
 
@@ -30,7 +33,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.4.0")
+@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.5.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -40,6 +43,8 @@ class NaiDrawPlugin(Star):
         self._last_call = {}
         self._user_presets = {}
         self._user_nsfw = {}
+        self._user_face_variation = {}
+        self._user_artists = {}
         self._variant_positions = {}
         self._data_dir = StarTools.get_data_dir("astrbot_plugin_nai_draw")
         self._out_dir = self._data_dir / "output"
@@ -140,6 +145,22 @@ class NaiDrawPlugin(Star):
             return self._user_nsfw[key]
         return self._bool_config("allow_nsfw", False)
 
+    def _face_variation_enabled(self, sender_id=None):
+        """返回自动脸型个人设置；未设置时继承管理面板默认值。"""
+        key = str(sender_id) if sender_id is not None else None
+        if key is not None and key in self._user_face_variation:
+            return self._user_face_variation[key]
+        return self._bool_config("enable_face_variation", True)
+
+    def _artist_tags(self, sender_id=None):
+        """返回当前用户按添加顺序保存的个人画师标签。"""
+        key = str(sender_id) if sender_id is not None else None
+        return self._user_artists.get(key, ()) if key is not None else ()
+
+    def _artist_string(self, sender_id=None):
+        """返回可直接合并进正面提示词的个人画师串。"""
+        return ", ".join(self._artist_tags(sender_id))
+
     def _sender_id(self, event):
         """将事件发送者统一为可作为字典键的字符串。"""
         try:
@@ -157,16 +178,21 @@ class NaiDrawPlugin(Star):
         sender_id = self._sender_id(event)
         selected = self._user_presets.get(sender_id)
         if selected:
-            number = PRESET_ORDER.index(selected) + 1
+            number = preset_number(selected)
             text += (
                 f"\n\n你的选择：{number} = {PRESETS[selected]['label']} [{selected}]"
             )
         else:
             default = self._default_preset()
-            number = PRESET_ORDER.index(default) + 1
+            number = preset_number(default)
             text += f"\n\n当前默认：{number} = {PRESETS[default]['label']} [{default}]"
         text += f"\n默认尺寸：{self._default_size()}"
-        text += "\n\n只选择：/nai 1\n选择并绘图：/nai 1 长发女孩"
+        text += (
+            "\n\n无预设：/nai 0 或 /nai 0 长发女孩"
+            "\n选择预设：/nai 1"
+            "\n选择并绘图：/nai 1 长发女孩"
+            "\n个人画师：/nai画师 添加 artist:名称"
+        )
         return event.plain_result(text)
 
     @filter.command("nainsfw")
@@ -194,6 +220,115 @@ class NaiDrawPlugin(Star):
             )
         return event.plain_result("用法：/nainsfw 开 | 关 | 状态 | 默认")
 
+    @filter.command("nai脸型")
+    async def cmd_face_variation(self, event: AstrMessageEvent, args: str = ""):
+        """查看或修改当前用户的自动脸型模式。"""
+        sender_id = self._sender_id(event)
+        action = str(args or "").strip().lower()
+
+        if action in {"开", "开启", "on", "1"}:
+            self._user_face_variation[sender_id] = True
+            return event.plain_result("[成功] 自动脸型已开启，仅对你生效。")
+        if action in {"关", "关闭", "off", "0"}:
+            self._user_face_variation[sender_id] = False
+            return event.plain_result(
+                "[成功] 自动脸型已关闭，仅对你生效；画师轮换保持开启。"
+            )
+        if action in {"默认", "重置", "reset"}:
+            self._user_face_variation.pop(sender_id, None)
+            state = "开启" if self._face_variation_enabled(sender_id) else "关闭"
+            return event.plain_result(f"[成功] 已恢复管理面板默认值：{state}。")
+        if action in {"", "状态", "status"}:
+            state = "开启" if self._face_variation_enabled(sender_id) else "关闭"
+            source = (
+                "个人设置"
+                if sender_id in self._user_face_variation
+                else "管理面板默认"
+            )
+            return event.plain_result(
+                f"当前自动脸型：{state}（{source}）\n"
+                "用法：/nai脸型 开 | 关 | 状态 | 默认"
+            )
+        return event.plain_result("用法：/nai脸型 开 | 关 | 状态 | 默认")
+
+    @filter.command("nai画师")
+    async def cmd_artists(self, event: AstrMessageEvent, args: str = ""):
+        """查看或修改当前用户的个人画师串。"""
+        sender_id = self._sender_id(event)
+        raw = str(args or "").strip()
+        action = raw.lower()
+        usage = (
+            "用法：/nai画师 添加 <画师串> | 设置 <画师串> | "
+            "删除 <编号> | 状态 | 清空"
+        )
+
+        if action in {"", "状态", "查看", "status"}:
+            tags = self._artist_tags(sender_id)
+            if not tags:
+                return event.plain_result(f"当前未设置个人画师串。\n{usage}")
+            lines = [f"当前个人画师串（{len(tags)} 个）："]
+            lines.extend(f"{index}. {tag}" for index, tag in enumerate(tags, 1))
+            lines.append(usage)
+            return event.plain_result("\n".join(lines))
+
+        if action in {"清空", "清除", "reset", "clear"}:
+            self._user_artists.pop(sender_id, None)
+            return event.plain_result("[成功] 已清空你的个人画师串。")
+
+        head, separator, payload = raw.partition(" ")
+        command = head.lower()
+        if command in {"删除", "移除", "delete", "remove"}:
+            if not separator or not payload.strip().isdecimal():
+                return event.plain_result(f"[失败] 请填写要删除的编号。\n{usage}")
+            tags = list(self._artist_tags(sender_id))
+            index = int(payload.strip()) - 1
+            if not 0 <= index < len(tags):
+                return event.plain_result(
+                    f"[失败] 画师编号范围是 1~{len(tags)}，请发送 /nai画师 状态 查看。"
+                    if tags
+                    else "[失败] 当前没有可删除的个人画师串。"
+                )
+            removed = tags.pop(index)
+            if tags:
+                self._user_artists[sender_id] = tuple(tags)
+            else:
+                self._user_artists.pop(sender_id, None)
+            return event.plain_result(f"[成功] 已删除：{removed}")
+
+        replace = command in {"设置", "替换", "set", "replace"}
+        append = command in {"添加", "增加", "add", "append"}
+        if replace or append:
+            if not separator or not payload.strip():
+                return event.plain_result(f"[失败] 缺少画师串。\n{usage}")
+            artist_text = payload
+        else:
+            append = True
+            artist_text = raw
+
+        new_tags, rejected = sanitize_artist_string(artist_text)
+        if not new_tags:
+            return event.plain_result(
+                "[失败] 没有合法画师标签。请使用 artist:名称，"
+                "或直接填写单个英文画师名；数值权重不得超过 1.5。"
+            )
+
+        if append:
+            current = self._artist_tags(sender_id)
+            combined, overflow = sanitize_artist_string(
+                ", ".join((*current, *new_tags)),
+                max_tags=MAX_CUSTOM_ARTISTS,
+            )
+            rejected += overflow
+        else:
+            combined = new_tags
+        self._user_artists[sender_id] = combined
+
+        note = f"；忽略 {rejected} 个无效或超量标签" if rejected else ""
+        verb = "设置" if replace else "添加"
+        return event.plain_result(
+            f"[成功] 已{verb}个人画师串，当前共 {len(combined)} 个{note}。"
+        )
+
     @filter.command("nai")
     async def cmd_draw(self, event: AstrMessageEvent, args: str = ""):
         """生成图片。支持 -风格 与 -尺寸 参数，其余文本为画面描述。"""
@@ -210,7 +345,10 @@ class NaiDrawPlugin(Star):
                 "  /nai 1（选择第一个预设）\n"
                 "  /nai 1girl, long hair, white dress\n"
                 "  /nai 2 -尺寸 方图 red qipao\n"
-                "查看预设：/nai预设"
+                "查看预设：/nai预设\n"
+                "无预设：/nai 0 画面描述\n"
+                "个人画师：/nai画师 添加 artist:名称\n"
+                "自动脸型：/nai脸型 关 | 开 | 状态 | 默认"
             )
             return
 
@@ -219,7 +357,7 @@ class NaiDrawPlugin(Star):
             selected = resolve_preset(raw)
             if not selected:
                 yield event.plain_result(
-                    f"[失败] 预设编号范围是 1~{len(PRESETS)}，请发送 /nai预设 查看。"
+                    f"[失败] 预设编号范围是 0~{len(PRESET_ORDER)}，请发送 /nai预设 查看。"
                 )
                 return
             self._user_presets[sender_id] = selected
@@ -234,7 +372,7 @@ class NaiDrawPlugin(Star):
             selected = resolve_preset(quick_match.group(1))
             if not selected:
                 yield event.plain_result(
-                    f"[失败] 预设编号范围是 1~{len(PRESETS)}，请发送 /nai预设 查看。"
+                    f"[失败] 预设编号范围是 0~{len(PRESET_ORDER)}，请发送 /nai预设 查看。"
                 )
                 return
             self._user_presets[sender_id] = selected
@@ -255,13 +393,18 @@ class NaiDrawPlugin(Star):
         reservation = time.time()
         self._last_call[sender_id] = reservation
 
-        preset_number = PRESET_ORDER.index(preset_key) + 1
+        current_preset_number = preset_number(preset_key)
         nsfw_state = "开启" if self._allow_nsfw(sender_id) else "关闭"
+        face_state = "开启" if self._face_variation_enabled(sender_id) else "关闭"
+        artist_count = len(self._artist_tags(sender_id))
+        artist_state = f"{artist_count} 个" if artist_count else "未设置"
         yield event.plain_result(
             "[绘图] 指令已生效，正在生成，请稍候。\n"
-            f"预设：{preset_number} = {PRESETS[preset_key]['label']}\n"
+            f"预设：{current_preset_number} = {PRESETS[preset_key]['label']}\n"
             f"尺寸：{size}\n"
-            f"NSFW：{nsfw_state}"
+            f"NSFW：{nsfw_state}\n"
+            f"自动脸型：{face_state}\n"
+            f"个人画师：{artist_state}"
         )
 
         try:
@@ -367,8 +510,13 @@ class NaiDrawPlugin(Star):
             self._last_call[sender_id] = reservation
         # 画师主力与五官逐次轮换，face_negative 用于压制其余变体特征。
         variant_index = self._next_variant_index(sender_id, preset_key)
+        face_enabled = self._face_variation_enabled(sender_id)
         prompt, face_negative = build_prompt(
-            preset_key, description, index=variant_index
+            preset_key,
+            description,
+            index=variant_index,
+            include_face=face_enabled,
+            custom_artist=self._artist_string(sender_id),
         )
         negative = build_negative(
             preset_key,
@@ -376,6 +524,7 @@ class NaiDrawPlugin(Star):
             self.config.get("extra_negative", ""),
             face_negative,
             description,
+            include_face=face_enabled,
         )
 
         label = PRESETS[preset_key]["label"]
@@ -441,5 +590,7 @@ class NaiDrawPlugin(Star):
         self._last_call.clear()
         self._user_presets.clear()
         self._user_nsfw.clear()
+        self._user_face_variation.clear()
+        self._user_artists.clear()
         self._variant_positions.clear()
         logger.info("[叶子的逼] 插件已卸载")

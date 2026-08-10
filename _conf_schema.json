@@ -32,9 +32,10 @@
     "default_preset": {
         "description": "默认画风预设",
         "type": "string",
-        "hint": "管理面板选择英文键；聊天命令可使用 /nai预设 显示的数字编号。",
+        "hint": "管理面板选择英文键；none 表示无预设，聊天命令可使用 /nai预设 显示的数字编号。",
         "default": "laowuyang",
         "options": [
+            "none",
             "laowuyang",
             "hiten",
             "pop",
@@ -80,6 +81,12 @@
         "type": "bool",
         "hint": "个人未执行 /nainsfw 时使用的默认值；关闭时会在负面提示词中加入 nsfw/nude 等压制标签。",
         "default": false
+    },
+    "enable_face_variation": {
+        "description": "自动脸型",
+        "type": "bool",
+        "hint": "个人未执行 /nai脸型 时使用的默认值；关闭后保留画师轮换和非脸部负面词，但不注入额外五官、脸型正面词及任何脸部负面约束。",
+        "default": true
     },
     "keep_images": {
         "description": "保留出图文件",

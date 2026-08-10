@@ -118,6 +118,7 @@ def test_config_and_parse():
                 "api_key": "sk-test",
                 "llm_translate": "false",
                 "allow_nsfw": "0",
+                "enable_face_variation": "false",
                 "keep_images": "true",
                 "timeout": "bad",
                 "max_concurrent": "0",
@@ -125,6 +126,7 @@ def test_config_and_parse():
         )
         check(plugin._use_llm_translate() is False, "字符串 false 不会被误判为真")
         check(plugin._bool_config("allow_nsfw") is False, "数字字符串 0 解析为假")
+        check(plugin._face_variation_enabled() is False, "自动脸型字符串 false 生效")
         check(plugin._bool_config("keep_images") is True, "字符串 true 解析为真")
         check(plugin._api._timeout == 180, "非法超时回退默认值")
         plugin.config["model"] = ""
@@ -198,6 +200,8 @@ def test_personal_preset_selection():
 
         plugin._generate_and_send = fake_generate
         preset_help = asyncio.run(plugin.cmd_presets(event))
+        check("0 = 无预设" in preset_help[1], "预设清单显示 0 号无预设")
+        check("/nai画师 添加" in preset_help[1], "预设清单显示个人画师入口")
         check("1 = 老五样" in preset_help[1], "预设清单显示数字与中文名")
         check("8 = 厚涂油画" in preset_help[1], "预设清单显示完整编号范围")
 
@@ -214,14 +218,23 @@ def test_personal_preset_selection():
         check("2 = hiten 柔和日系" in result[0][1], "进度反馈显示个人预设")
         check("尺寸：832x1216" in result[0][1], "进度反馈显示实际尺寸")
         check("NSFW：关闭" in result[0][1], "进度反馈显示 NSFW 状态")
+        check("自动脸型：开启" in result[0][1], "进度反馈显示自动脸型状态")
+        check("个人画师：未设置" in result[0][1], "进度反馈显示个人画师状态")
         check(calls[-1][2] == "hiten", "后续描述使用个人预设")
 
         run_draw(plugin, event, "3 night city")
         check(calls[-1][2] == "pop", "一步式编号绘图使用对应预设")
         check(plugin._user_presets["user-preset"] == "pop", "一步式绘图更新个人预设")
 
+        no_preset = run_draw(plugin, event, "0")
+        check("已选择" in no_preset[0][1] and "无预设" in no_preset[0][1], "单独选择无预设成功")
+        check(plugin._user_presets["user-preset"] == "none", "无预设个人选择已保存")
+
+        run_draw(plugin, event, "0 night city")
+        check(calls[-1][2] == "none", "一步式无预设绘图进入生成链路")
+
         invalid = run_draw(plugin, event, "9")
-        check(invalid[0][0] == "plain" and "1~8" in invalid[0][1], "越界编号返回范围提示")
+        check(invalid[0][0] == "plain" and "0~8" in invalid[0][1], "越界编号返回范围提示")
 
         asyncio.run(plugin.terminate())
         check(not plugin._user_presets, "插件卸载时清理个人预设")
@@ -245,7 +258,7 @@ def test_input_validation_and_feedback():
         plugin._generate_and_send = fake_generate
 
         invalid = run_draw(plugin, event, "9 white dress")
-        check(invalid[0][0] == "plain" and "1~8" in invalid[0][1], "越界快捷编号被拒绝")
+        check(invalid[0][0] == "plain" and "0~8" in invalid[0][1], "越界快捷编号被拒绝")
         check(not calls and "user-input" not in plugin._user_presets, "越界编号不生成也不保存")
 
         async def no_tags(*args, **kwargs):
@@ -302,10 +315,12 @@ def test_nsfw_command():
             extra,
             face_negative="",
             user_text="",
+            include_face=True,
         ):
             captured["allow_nsfw"] = allow_nsfw
             captured["face_negative"] = face_negative
             captured["user_text"] = user_text
+            captured["include_face"] = include_face
             return "negative"
 
         with patch(
@@ -323,6 +338,7 @@ def test_nsfw_command():
                 )
             )
         check(captured.get("allow_nsfw") is True, "生成链路使用个人开启状态")
+        check(captured.get("include_face") is True, "默认生成链路启用自动脸型")
         # 五官排他负面词须一路传到负面词组装，否则脸型分化失效
         check(bool(captured.get("face_negative")), "生成链路透传五官排他负面词")
         check(captured.get("user_text") == "1girl", "生成链路透传用户描述用于冲突剔除")
@@ -340,6 +356,200 @@ def test_nsfw_command():
         asyncio.run(plugin.cmd_nsfw(user, "开"))
         asyncio.run(plugin.terminate())
         check(not plugin._user_nsfw, "插件卸载时清理 NSFW 设置")
+
+
+def test_face_variation_command():
+    print("个人自动脸型指令：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(
+            object(),
+            {
+                "api_base": "http://example.test",
+                "api_key": "sk-test",
+                "cooldown": 0,
+                "enable_face_variation": True,
+            },
+        )
+        user = FakeEvent("user-face")
+
+        help_result = run_draw(plugin, user, "")
+        check("/nai脸型" in help_result[0][1], "绘图帮助显示自动脸型指令")
+        check("/nai 0" in help_result[0][1], "绘图帮助显示无预设入口")
+        check("/nai画师 添加" in help_result[0][1], "绘图帮助显示个人画师入口")
+
+        status = asyncio.run(plugin.cmd_face_variation(user))
+        check("开启" in status[1] and "管理面板默认" in status[1], "默认状态正确")
+
+        closed = asyncio.run(plugin.cmd_face_variation(user, "关"))
+        check(closed[0] == "plain" and "已关闭" in closed[1], "关闭指令成功")
+        check(plugin._face_variation_enabled("user-face") is False, "个人关闭状态生效")
+        check(plugin._face_variation_enabled("other-user") is True, "个人设置不影响其他用户")
+
+        captured = {}
+        plugin._api = types.SimpleNamespace(
+            configured=True,
+            generate=lambda *args, **kwargs: b"fake-image"
+        )
+
+        def fake_build_prompt(
+            preset_key,
+            user_text,
+            year_tag="year 2024",
+            index=None,
+            include_face=True,
+            custom_artist="",
+        ):
+            captured["include_face"] = include_face
+            return "prompt", ""
+
+        with patch(
+            "astrbot_plugin_nai_draw.main.build_prompt",
+            side_effect=fake_build_prompt,
+        ):
+            asyncio.run(
+                plugin._generate_and_send(
+                    user,
+                    "1girl",
+                    "laowuyang",
+                    "832x832",
+                    "",
+                    sender_id="user-face",
+                )
+            )
+        check(captured.get("include_face") is False, "生成链路关闭自动脸型注入")
+
+        async def fake_generate(*args):
+            return ("fake",)
+
+        plugin._generate_and_send = fake_generate
+        result = run_draw(plugin, user, "1girl")
+        check("自动脸型：关闭" in result[0][1], "进度反馈显示个人关闭状态")
+
+        opened = asyncio.run(plugin.cmd_face_variation(user, "开"))
+        check("已开启" in opened[1] and plugin._face_variation_enabled("user-face"), "开启指令成功")
+
+        plugin.config["enable_face_variation"] = False
+        reset = asyncio.run(plugin.cmd_face_variation(user, "默认"))
+        check("管理面板默认值：关闭" in reset[1], "恢复管理面板关闭状态")
+        check("user-face" not in plugin._user_face_variation, "恢复默认后删除个人覆盖")
+
+        invalid = asyncio.run(plugin.cmd_face_variation(user, "未知"))
+        check("用法" in invalid[1], "非法参数返回用法")
+
+        asyncio.run(plugin.cmd_face_variation(user, "开"))
+        asyncio.run(plugin.terminate())
+        check(not plugin._user_face_variation, "插件卸载时清理自动脸型设置")
+
+
+def test_artist_command():
+    print("个人画师串指令：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(
+            object(),
+            {
+                "api_base": "http://example.test",
+                "api_key": "sk-test",
+                "cooldown": 0,
+            },
+        )
+        user = FakeEvent("user-artist")
+        other = FakeEvent("other-artist")
+
+        status = asyncio.run(plugin.cmd_artists(user))
+        check("未设置" in status[1], "默认没有个人画师串")
+
+        direct = asyncio.run(plugin.cmd_artists(user, "wlop"))
+        check("已添加" in direct[1], "直接发送英文画师名可追加")
+        check(plugin._artist_tags("user-artist") == ("artist:wlop",), "裸名称自动补画师前缀")
+
+        added = asyncio.run(
+            plugin.cmd_artists(
+                user,
+                "添加 {artist:guweiz}, 2.0::artist:bad::",
+            )
+        )
+        check("忽略 1 个" in added[1], "添加时提示无效权重标签")
+        check(
+            plugin._artist_tags("user-artist")
+            == ("artist:wlop", "{artist:guweiz}"),
+            "合法画师按顺序追加",
+        )
+        check(not plugin._artist_tags("other-artist"), "个人画师串不影响其他用户")
+
+        listed = asyncio.run(plugin.cmd_artists(user, "状态"))
+        check("1. artist:wlop" in listed[1], "状态按编号显示画师串")
+        check("2. {artist:guweiz}" in listed[1], "状态显示全部画师串")
+
+        deleted = asyncio.run(plugin.cmd_artists(user, "删除 1"))
+        check("artist:wlop" in deleted[1], "按编号删除画师成功")
+        check(plugin._artist_tags("user-artist") == ("{artist:guweiz}",), "删除后保留其他画师")
+
+        replaced = asyncio.run(
+            plugin.cmd_artists(user, "设置 1.2::artist:sakimichan::")
+        )
+        check("已设置" in replaced[1], "设置指令替换原画师串")
+        check(
+            plugin._artist_tags("user-artist")
+            == ("1.2::artist:sakimichan::",),
+            "设置后只保留新画师串",
+        )
+
+        invalid = asyncio.run(plugin.cmd_artists(user, "添加 普通中文描述"))
+        check(invalid[0] == "plain" and "没有合法" in invalid[1], "非法画师串被拒绝")
+        check(len(plugin._artist_tags("user-artist")) == 1, "非法输入不覆盖已有画师")
+
+        captured = {}
+        plugin._api = types.SimpleNamespace(
+            configured=True,
+            generate=lambda *args, **kwargs: b"fake-image",
+        )
+
+        def fake_build_prompt(
+            preset_key,
+            user_text,
+            year_tag="year 2024",
+            index=None,
+            include_face=True,
+            custom_artist="",
+        ):
+            captured["custom_artist"] = custom_artist
+            return "prompt", ""
+
+        with patch(
+            "astrbot_plugin_nai_draw.main.build_prompt",
+            side_effect=fake_build_prompt,
+        ):
+            asyncio.run(
+                plugin._generate_and_send(
+                    user,
+                    "1girl",
+                    "none",
+                    "832x832",
+                    "",
+                    sender_id="user-artist",
+                )
+            )
+        check(
+            captured.get("custom_artist") == "1.2::artist:sakimichan::",
+            "生成链路透传个人画师串",
+        )
+
+        async def fake_generate(*args):
+            return ("fake",)
+
+        plugin._generate_and_send = fake_generate
+        result = run_draw(plugin, user, "0 1girl")
+        check("预设：0 = 无预设" in result[0][1], "进度反馈显示无预设模式")
+        check("个人画师：1 个" in result[0][1], "进度反馈显示个人画师数量")
+
+        cleared = asyncio.run(plugin.cmd_artists(user, "清空"))
+        check("已清空" in cleared[1] and not plugin._artist_tags("user-artist"), "清空画师串成功")
+
+        asyncio.run(plugin.cmd_artists(user, "artist:wlop"))
+        asyncio.run(plugin.terminate())
+        check(not plugin._user_artists, "插件卸载时清理个人画师串")
 
 
 def test_failure_releases_cooldown():
@@ -407,6 +617,8 @@ def main():
         test_personal_preset_selection,
         test_input_validation_and_feedback,
         test_nsfw_command,
+        test_face_variation_command,
+        test_artist_command,
         test_failure_releases_cooldown,
         test_variant_rotation,
     ):

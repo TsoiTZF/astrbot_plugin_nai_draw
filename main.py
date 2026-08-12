@@ -51,6 +51,8 @@ class NaiDrawPlugin(Star):
         self._user_artists = {}
         self._variant_positions = {}
         self._last_image = {}
+        self._steg_enabled = {}
+        self._steg_password = {}
         self._data_dir = StarTools.get_data_dir("astrbot_plugin_nai_draw")
         self._steg_dir = self._data_dir / "stego"
         self._steg_dir.mkdir(parents=True, exist_ok=True)
@@ -574,7 +576,46 @@ class NaiDrawPlugin(Star):
         self._last_image[str(sender_id)] = str(path)
         if warning:
             logger.info(f"[叶子的逼] {label} 参数提示: {warning}")
+        # 隐写模式：把生成的图片隐藏进随机载体图，只发载体图
+        if self._steg_enabled.get(str(sender_id), False):
+            return await self._hide_into_cover(event, path, sender_id, preset_key)
         return event.image_result(str(path))
+
+    async def _hide_into_cover(self, event, generated_path, sender_id, preset_key):
+        """把生成的图片隐藏进载体图库的随机载体图，发送载体图。"""
+        try:
+            cover_path = self._pick_random_cover()
+        except ValueError as exc:
+            logger.warning(f"[叶子的逼] {exc}，本次直接发送原图")
+            return event.image_result(str(generated_path))
+
+        session_id = uuid.uuid4().hex[:8]
+        output_path = self._steg_dir / f"{session_id}_stego.png"
+        password = self._steg_password.get(str(sender_id))
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: hide_file_into_image(
+                    cover_path=cover_path,
+                    file_path=generated_path,
+                    file_name=generated_path.name,
+                    output_path=output_path,
+                    encrypt=bool(password),
+                    password=password,
+                ),
+            )
+            logger.info(
+                f"[叶子的逼] 隐写完成 sender={sender_id} preset={preset_key} "
+                f"cover={cover_path.name}"
+            )
+            return event.image_result(str(output_path))
+        except Exception as exc:
+            logger.error(f"[叶子的逼] 隐写失败，回退发送原图: {exc}", exc_info=True)
+            return event.image_result(str(generated_path))
+        finally:
+            # 隐写后的临时文件延迟清理，发送后由框架处理
+            pass
 
     def _save_image(self, data, preset_key):
         """写入图片文件，超量时清理旧文件避免磁盘堆积。"""
@@ -649,174 +690,98 @@ class NaiDrawPlugin(Star):
         return random.choice(covers)
 
     @filter.command("nai隐写", alias={"nai_steg", "naihide"})
-    async def cmd_steg_hide(self, event: AstrMessageEvent, args: str = ""):
-        """生成图片并隐藏进预设图库的载体图中，只发送载体图。
+    async def cmd_steg_toggle(self, event: AstrMessageEvent, args: str = ""):
+        """开启或关闭隐写模式。
 
-        用法：/nai隐写 [密码] 画面描述
-        流程：调 NovelAI 生成图片 → 从载体图库随机取图 → 把生成的图隐藏进载体图 → 只发载体图
-        其他人看到的是一张普通的预设图片，但里面藏着生成的图。
-        用 /nai提取 可以还原出生成的图片。
+        开启后，所有 /nai 生成的图片会自动隐藏进载体图库的随机载体图中，
+        只发送载体图（别人看到的是普通图片，里面藏着生成的图）。
+        用 /nai提取 可从载体图还原出原始生成图。
+
+        用法：/nai隐写 开 [密码]   开启隐写，可选密码加密
+              /nai隐写 关          关闭隐写，恢复直接发图
+              /nai隐写 状态        查看当前隐写状态
         """
-        if not self._api.configured:
-            yield event.plain_result(
-                "[失败] 插件未配置 API 地址或密钥，请在管理面板填写后重试。"
-            )
-            return
-
-        raw = str(args or "").strip()
-        if not raw:
-            yield event.plain_result(
-                "请描述要画的内容。例如：\n"
-                "  /nai隐写 1girl, long hair, white dress\n"
-                "  /nai隐写 我的密码 1girl, long hair\n"
-                "生成的图片会隐藏进预设图库的载体图中，只发送载体图。\n"
-                "用 /nai提取 [密码] 可还原出原始生成图。"
-            )
-            return
-
         sender_id = self._sender_id(event)
+        action = str(args or "").strip().lower()
 
-        # 解析密码和画面描述：如果第一段词不是预设编号，且整体不像纯描述，
-        # 则把第一段当作密码，其余当作描述。
-        password = None
-        description = raw
-        parts = raw.split(maxsplit=1)
-        if parts and not parts[0].isdecimal() and not raw.startswith("-"):
-            # 第一段不是纯数字（不是预设编号），当作密码
-            password = parts[0]
-            description = parts[1] if len(parts) > 1 else ""
+        if action in {"开", "开启", "on", "1"}:
+            self._steg_enabled[sender_id] = True
+            self._steg_password.pop(sender_id, None)
+            return event.plain_result("[成功] 隐写模式已开启，仅对你生效。\n之后 /nai 生成的图片会自动隐藏进载体图中。")
+        if action in {"关", "关闭", "off", "0"}:
+            self._steg_enabled.pop(sender_id, None)
+            self._steg_password.pop(sender_id, None)
+            return event.plain_result("[成功] 隐写模式已关闭，恢复直接发送生成图。")
+
+        # 解析 密码 参数：/nai隐写 开 我的密码
+        parts = action.split(maxsplit=1)
+        if parts and parts[0] in {"开", "开启", "on"} and len(parts) > 1:
+            password = parts[1]
             if password.lower() in {"不需要", "无", "no", "不加密"}:
                 password = None
-
-        if not description:
-            yield event.plain_result("[失败] 缺少画面描述。用法：/nai隐写 [密码] 画面描述")
-            return
-
-        # 检查载体图库是否有图
-        try:
-            cover_path = self._pick_random_cover()
-        except ValueError as exc:
-            yield event.plain_result(f"[失败] {exc}")
-            return
-
-        # 解析预设和尺寸（复用 /nai 的参数解析逻辑）
-        remaining, preset_key, size, warning = self._parse_args(
-            description, self._user_presets.get(sender_id)
-        )
-        if not remaining:
-            yield event.plain_result("[失败] 只填了参数，缺少画面描述。")
-            return
-
-        blocked = self._cooldown_remaining(sender_id)
-        if blocked > 0:
-            yield event.plain_result(f"[提示] 冷却中，请 {blocked} 秒后再试。")
-            return
-
-        reservation = time.time()
-        self._last_call[sender_id] = reservation
-
-        current_preset_number = preset_number(preset_key)
-        yield event.plain_result(
-            "[隐写绘图] 正在生成并隐写，请稍候。\n"
-            f"预设：{current_preset_number} = {PRESETS[preset_key]['label']}\n"
-            f"尺寸：{size}\n"
-            f"载体：{cover_path.name}\n"
-            f"加密：{'是' if password else '否'}"
-        )
-
-        # Step 1: 调 NovelAI 生成图片
-        try:
-            description_tags, note = await to_tags(
-                self.context, remaining, self._use_llm_translate()
+            self._steg_enabled[sender_id] = True
+            if password:
+                self._steg_password[sender_id] = password
+            else:
+                self._steg_password.pop(sender_id, None)
+            return event.plain_result(
+                f"[成功] 隐写模式已开启{'，密码：' + password if password else '（无加密）'}，仅对你生效。"
             )
-        except Exception as exc:
-            self._clear_cooldown(sender_id, reservation)
-            logger.error(f"[叶子的逼] 描述转换异常: {exc}", exc_info=True)
-            yield event.plain_result("[失败] 描述转换失败，请稍后重试。")
-            return
-        if note:
-            warning = "；".join(part for part in (warning, note) if part)
-        if not str(description_tags or "").strip():
-            self._clear_cooldown(sender_id, reservation)
-            detail = warning or "没有可用于绘图的英文标签"
-            yield event.plain_result(f"[失败] {detail}。")
-            return
 
-        variant_index = self._next_variant_index(sender_id, preset_key)
-        face_enabled = self._face_variation_enabled(sender_id)
-        prompt, face_negative = build_prompt(
-            preset_key,
-            description_tags,
-            index=variant_index,
-            include_face=face_enabled,
-            custom_artist=self._artist_string(sender_id),
-        )
-        negative = build_negative(
-            preset_key,
-            self._allow_nsfw(sender_id),
-            self.config.get("extra_negative", ""),
-            face_negative,
-            description_tags,
-            include_face=face_enabled,
+        # 默认显示状态
+        enabled = self._steg_enabled.get(sender_id, False)
+        password = self._steg_password.get(sender_id)
+        covers = [p for p in self._cover_dir.iterdir() if p.is_file() and p.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}]
+        return event.plain_result(
+            f"当前隐写模式：{'开启' if enabled else '关闭'}\n"
+            f"加密密码：{password if password else '无'}\n"
+            f"载体图库：{self._cover_dir}（{len(covers)} 张）\n"
+            "用法：/nai隐写 开 [密码] | 关 | 状态"
         )
 
-        async with self._semaphore:
-            try:
-                loop = asyncio.get_running_loop()
-                generated_data = await loop.run_in_executor(
-                    None,
-                    lambda: self._api.generate(
-                        prompt, negative, size, retries=self._retries()
-                    ),
-                )
-            except NaiAPIError as exc:
-                self._clear_cooldown(sender_id, reservation)
-                logger.error(f"[叶子的逼] 生成失败: {exc}")
-                yield event.plain_result(f"[失败] {exc}")
-                return
-            except Exception as exc:
-                self._clear_cooldown(sender_id, reservation)
-                logger.error(f"[叶子的逼] 未预期异常: {exc}", exc_info=True)
-                yield event.plain_result(f"[失败] 内部错误：{type(exc).__name__}")
-                return
+    @filter.command("nai载体", alias={"nai_cover", "naicover"})
+    async def cmd_add_cover(self, event: AstrMessageEvent, args: str = ""):
+        """将用户上传的图片加入载体图库。
 
-        # Step 2: 保存生成的图片
-        try:
-            generated_path = self._save_image(generated_data, preset_key)
-        except (OSError, ValueError, TypeError) as exc:
-            self._clear_cooldown(sender_id, reservation)
-            logger.error(f"[叶子的逼] 图片保存失败: {exc}", exc_info=True)
-            yield event.plain_result("[失败] 图片保存失败，请检查插件数据目录。")
-            return
+        用法：上传一张图片 + /nai载体 [文件名]
+        不填文件名时自动命名。载体图用于隐写时随机选取。
+        """
+        image_url = self._find_image_segment(event)
+        if not image_url:
+            return event.plain_result(
+                "请上传或引用一张图片后再使用 /nai载体。\n"
+                "用法：上传图片 + /nai载体 [文件名]"
+            )
 
-        # Step 3: 把生成的图片隐藏进载体图
-        session_id = uuid.uuid4().hex[:8]
-        output_path = self._steg_dir / f"{session_id}_stego.png"
+        # 确定文件名和扩展名
+        custom_name = str(args or "").strip()
         try:
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: hide_file_into_image(
-                    cover_path=cover_path,
-                    file_path=generated_path,
-                    file_name=f"nai_{preset_key}_{time.time_ns()}.png",
-                    output_path=output_path,
-                    encrypt=bool(password),
-                    password=password,
-                ),
-            )
+            img_data = await loop.run_in_executor(None, self._download_to_bytes, image_url)
         except Exception as exc:
-            logger.error(f"[叶子的逼] 隐写失败: {exc}", exc_info=True)
-            yield event.plain_result(f"[失败] 隐写失败：{exc}")
-            return
+            logger.error(f"[叶子的逼] 载体图下载失败: {exc}", exc_info=True)
+            return event.plain_result(f"[失败] 图片下载失败：{exc}")
 
-        # Step 4: 只发送载体图（生成的图片已隐藏其中）
-        self._last_image[sender_id] = str(output_path)
-        logger.info(
-            f"[叶子的逼] 隐写完成 sender={sender_id} preset={preset_key} "
-            f"cover={cover_path.name}"
+        if custom_name:
+            # 用户指定文件名，补扩展名
+            if not Path(custom_name).suffix:
+                custom_name += ".png"
+            save_path = self._cover_dir / custom_name
+        else:
+            save_path = self._cover_dir / f"cover_{time.time_ns()}.png"
+
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, save_path.write_bytes, img_data)
+        except OSError as exc:
+            logger.error(f"[叶子的逼] 载体图保存失败: {exc}", exc_info=True)
+            return event.plain_result(f"[失败] 载体图保存失败：{exc}")
+
+        covers = [p for p in self._cover_dir.iterdir() if p.is_file() and p.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp', '.bmp'}]
+        return event.plain_result(
+            f"[成功] 载体图已加入图库：{save_path.name}\n"
+            f"当前载体图库共 {len(covers)} 张。"
         )
-        yield event.image_result(str(output_path))
 
     @filter.command("nai提取", alias={"nai_extract", "naiunhide"})
     async def cmd_steg_extract(self, event: AstrMessageEvent, args: str = ""):
@@ -883,4 +848,6 @@ class NaiDrawPlugin(Star):
         self._user_artists.clear()
         self._variant_positions.clear()
         self._last_image.clear()
+        self._steg_enabled.clear()
+        self._steg_password.clear()
         logger.info("[叶子的逼] 插件已卸载")

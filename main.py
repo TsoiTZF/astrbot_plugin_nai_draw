@@ -33,7 +33,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "小莫", "叶子的逼，NovelAI 绘画与画师串预设", "1.5.0")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设", "1.5.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)

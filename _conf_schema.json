@@ -105,5 +105,11 @@
         "type": "bool",
         "hint": "开启后，内置词典未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签。关闭则仅用词典，未识别部分被忽略。",
         "default": true
+    },
+    "cover_dir": {
+        "description": "隐写载体图库目录",
+        "type": "string",
+        "hint": "放置载体图片的本地目录（绝对路径），留空时使用插件数据目录下的 covers。使用 /nai隐写 时从中随机取一张图作为载体。",
+        "default": ""
     }
 }

@@ -169,11 +169,11 @@ def test_to_tags():
         check("long hair" in tags, "保留词典命中部分")
         check("忽略" in note, "提示未识别部分被忽略")
 
-        # 词典未覆盖 + LLM 成功
-        ctx = FakeContext(FakeProvider(reply="holding guandao, weapon"))
+        # LLM 成功：整句翻译，返回完整标签
+        ctx = FakeContext(FakeProvider(reply="1girl, long hair, holding, weapon"))
         tags, note = await to_tags(ctx, "长发女孩拿着青龙偃月刀", use_llm=True)
-        check("long hair" in tags, "词典部分保留")
-        check("guandao" in tags, "LLM 结果已合并")
+        check("1girl" in tags and "long hair" in tags, "LLM 整句翻译返回完整标签")
+        check("weapon" in tags, "LLM 结果包含武器标签")
         check("智能翻译" in note, "提示已智能翻译")
 
         # LLM 故障时降级

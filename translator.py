@@ -327,7 +327,8 @@ def _sanitize_llm_output(raw):
 async def to_tags(context, text, use_llm=True):
     """把用户输入转为标签串，返回 (标签, 说明)。
 
-    纯英文输入直接返回；中文先查词典，残留部分再交 LLM。
+    纯英文输入直接返回；中文优先交 LLM 整句翻译（上下文完整、质量高）；
+    LLM 不可用时降级为词典匹配。
     """
     raw = str(text or "").strip()
     if not raw:
@@ -336,20 +337,16 @@ async def to_tags(context, text, use_llm=True):
     if not contains_chinese(raw):
         return raw, ""
 
+    # LLM 优先：整句交给 LLM，保留完整上下文，翻译更准确
+    if use_llm:
+        llm_tags = await translate_by_llm(context, raw)
+        if llm_tags:
+            return llm_tags, "已智能翻译"
+
+    # 降级：词典匹配，残留部分忽略
     lexicon_tags, leftover = translate_by_lexicon(raw)
-
-    if leftover:
-        # 仅在开启 LLM 时尝试补翻译，失败则走下方的降级分支
-        if use_llm:
-            llm_tags = await translate_by_llm(context, leftover)
-            if llm_tags:
-                merged = ", ".join(part for part in (lexicon_tags, llm_tags) if part)
-                return merged, f"已智能翻译：{leftover}"
-        if not lexicon_tags:
-            # NAI 不识别中文，返回空标签交由命令层终止，避免浪费生成额度。
-            return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
+    if leftover and lexicon_tags:
         return lexicon_tags, f"未识别部分已忽略：{leftover}"
-
     if not lexicon_tags:
         return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
     return lexicon_tags, ""

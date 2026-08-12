@@ -15,6 +15,7 @@ from astrbot.api import logger
 
 # 中文描述到 danbooru 标签的映射。
 # 键为可能出现的中文写法，值为对应标签，多个标签用逗号分隔。
+# 按键长度倒序匹配，长词优先命中，避免「长发」被「发」截断。
 LEXICON = {
     # ---- 人数与主体 ----
     "女孩": "1girl", "少女": "1girl", "女生": "1girl", "女性": "1girl",
@@ -23,16 +24,20 @@ LEXICON = {
     "两个女孩": "2girls", "三个女孩": "3girls",
     "御姐": "mature female, adult woman", "成熟女性": "mature female",
     "少妇": "mature female", "阿姨": "mature female",
+    "正太": "shota", "萝莉": "loli",
+    "情侣": "1boy, 1girl", "双人": "2girls", "多人群": "multiple girls",
 
     # ---- 发长与发型 ----
     "长发": "long hair", "短发": "short hair", "中长发": "medium hair",
     "超长发": "very long hair", "及腰长发": "very long hair",
+    "拖地长发": "absurdly long hair",
     "双马尾": "twintails", "马尾": "ponytail", "单马尾": "ponytail",
     "丸子头": "hair bun", "双丸子": "double bun", "盘发": "hair bun",
     "波波头": "bob cut", "齐肩": "medium hair", "齐刘海": "blunt bangs",
     "刘海": "bangs", "编发": "braid", "麻花辫": "braid", "双辫": "twin braids",
     "卷发": "wavy hair", "大波浪": "wavy hair", "直发": "straight hair",
-    "凌乱头发": "messy hair", "湿发": "wet hair",
+    "凌乱头发": "messy hair", "湿发": "wet hair", "侧马尾": "side ponytail",
+    "心形发": "heart hair bun", "呆毛": "ahoge",
 
     # ---- 发色 ----
     "黑发": "black hair", "白发": "white hair", "银发": "silver hair",
@@ -40,12 +45,13 @@ LEXICON = {
     "红发": "red hair", "粉发": "pink hair", "蓝发": "blue hair",
     "绿发": "green hair", "紫发": "purple hair", "橙发": "orange hair",
     "青发": "teal hair", "紫罗兰发": "lavender hair", "亚麻色": "light brown hair",
+    "渐变发色": "gradient hair", "挑染": "streaked hair",
 
     # ---- 瞳色 ----
     "黑眼": "black eyes", "蓝眼": "blue eyes", "红眼": "red eyes",
     "绿眼": "green eyes", "紫眼": "purple eyes", "金眼": "golden eyes",
     "琥珀眼": "amber eyes", "灰眼": "grey eyes", "粉眼": "pink eyes",
-    "异色瞳": "heterochromia",
+    "异色瞳": "heterochromia", "渐变瞳": "gradient eyes",
 
     # ---- 眼型与表情 ----
     "笑": "smile", "微笑": "soft smile", "笑容": "smile",
@@ -55,6 +61,7 @@ LEXICON = {
     "严肃": "serious", "生气": "angry", "皱眉": "furrowed brow",
     "撅嘴": "pout", "不满": "pout", "害羞": "blush, embarrassed",
     "脸红": "blush", "哭": "crying", "流泪": "tears",
+    "落泪": "tears", "含泪": "tears, crying",
     "惊讶": "surprised, wide eyes", "困": "sleepy, half-closed eyes",
     "闭眼": "closed eyes", "半闭眼": "half-closed eyes",
     "垂眼": "tareme", "吊眼": "tsurime", "眯眼": "narrowed eyes",
@@ -62,6 +69,8 @@ LEXICON = {
     "温柔": "gentle smile", "看着镜头": "looking at viewer",
     "看向别处": "looking away", "回头": "looking back",
     "抬头": "looking up", "低头": "looking down",
+    "侧颜": "profile", "侧脸": "profile",
+    "吐舌": "tongue out", "舔唇": "licking lips",
 
     # ---- 服装 ----
     "校服": "school uniform", "水手服": "sailor collar, school uniform",
@@ -79,6 +88,10 @@ LEXICON = {
     "运动服": "sportswear", "睡衣": "pajamas", "浴袍": "bathrobe",
     "女仆装": "maid, maid headdress", "护士服": "nurse",
     "铠甲": "armor", "斗篷": "cape", "披风": "cloak",
+    "jk制服": "jk uniform", "格子裙": "plaid skirt",
+    "卫衣": "hoodie", "牛仔裤": "jeans", "短裤": "shorts",
+    "热裤": "short shorts", "围裙": "apron", "裸体围裙": "naked apron",
+    "水手服上衣": "sailor shirt",
 
     # ---- 配饰 ----
     "眼镜": "glasses", "帽子": "hat", "草帽": "straw hat",
@@ -86,6 +99,9 @@ LEXICON = {
     "项链": "necklace", "耳环": "earrings", "choker": "choker",
     "颈环": "choker", "手套": "gloves", "长手套": "elbow gloves",
     "皇冠": "tiara", "面纱": "veil", "口罩": "mask",
+    "猫耳": "cat ears", "兔耳": "bunny ears", "头戴耳机": "headphones",
+    "围巾": "scarf", "领带": "necktie", "蝴蝶结领带": "ribbon tie",
+    "太阳镜": "sunglasses", "头花": "hair flower",
 
     # ---- 姿势与动作 ----
     "站": "standing", "站着": "standing", "坐": "sitting", "坐着": "sitting",
@@ -97,6 +113,11 @@ LEXICON = {
     "手撑脸": "hand on own cheek", "拢发": "hand in own hair",
     "背手": "arms behind back", "伸懒腰": "stretching",
     "回眸": "looking back", "歪头": "head tilt",
+    "翘腿": "legs up", "叉腰": "hands on hips",
+    "趴": "lying on stomach", "趴着": "lying on stomach",
+    "仰躺": "lying on back", "侧躺": "lying on side",
+    "瑜伽": "yoga pose", "猫腰": "arched back",
+    "飞翔": "flying", "漂浮": "floating",
 
     # ---- 场景 ----
     "教室": "classroom", "学校": "school", "图书馆": "library",
@@ -112,6 +133,9 @@ LEXICON = {
     "星空": "starry sky", "月光": "moonlight", "夕阳": "sunset",
     "黄昏": "dusk", "清晨": "morning", "白天": "daytime", "夜晚": "night",
     "室内": "indoors", "室外": "outdoors",
+    "草原": "grassland", "沙漠": "desert", "瀑布": "waterfall",
+    "车站": "train station", "列车": "train", "飞机": "airplane",
+    "花园": "garden", "桥": "bridge", "城堡": "castle",
 
     # ---- 光照与氛围 ----
     "逆光": "backlighting", "侧光": "side lighting", "柔光": "soft lighting",
@@ -119,11 +143,21 @@ LEXICON = {
     "霓虹": "neon lights", "烛光": "candlelight", "光斑": "bokeh",
     "梦幻": "dreamy", "唯美": "beautiful", "氛围感": "atmospheric",
     "电影感": "cinematic lighting", "景深": "depth of field",
+    "丁达尔": "sunbeam", "光线": "light rays", "发光": "glowing",
+    "体积光": "volumetric lighting",
 
     # ---- 体型 ----
     "巨乳": "large breasts", "大胸": "large breasts",
-    "中等胸": "medium breasts", "贫乳": "small breasts",
+    "中等胸": "medium breasts", "贫乳": "small breasts", "平胸": "flat chest",
     "曲线": "curvy figure", "纤细": "slender", "苗条": "slim",
+    "丰满": "plump", "肌肉": "muscular", "健壮": "muscular",
+    "长腿": "long legs", "细腰": "narrow waist",
+
+    # ---- 画质与风格 ----
+    "高清": "highres", "超清": "ultra-detailed", "精致": "detailed",
+    "水彩风": "watercolor", "油画风": "oil painting", "素描": "sketch",
+    "赛璐璐": "cel shading", "厚涂": "impasto", "线稿": "lineart",
+    "黑白": "monochrome", "单色": "monochrome", "复古风": "retro artstyle",
 
     # ---- 独立颜色词 ----
     # 置于词典末尾，因按键长度倒序匹配，「黑发」「黑丝」等复合词会先命中，
@@ -144,10 +178,19 @@ LLM_INSTRUCTION = (
     "1. 只输出标签，用英文逗号分隔，不要任何解释、编号或换行。\n"
     "2. 使用 danbooru 实际存在的标签，例如 1girl / long hair / school uniform。\n"
     "3. 不要输出画师名、不要输出 masterpiece 或 best quality 之类的质量词。\n"
-    "4. 不要输出括号权重符号。\n"
+    "4. 不要输出括号权重符号（如 {{ }} 或 [ ]）。\n"
     "5. 若描述里有人数，务必保留 1girl 或 1boy 这类标签。\n"
-    "6. 控制在 25 个标签以内。\n\n"
-    "中文描述：{text}\n\n"
+    "6. 控制在 25 个标签以内。\n"
+    "7. 描述中的颜色、服装、发型、表情、姿势都要转换，不要遗漏。\n"
+    "8. 不要输出 NSFW 相关的露骨标签。\n\n"
+    "示例：\n"
+    "中文描述：一个穿白色连衣裙的长发女孩站在花田里\n"
+    "标签：1girl, solo, long hair, white dress, standing, flower field, outdoors\n\n"
+    "中文描述：黑发红眼的少女坐在教室里看窗外，穿着校服\n"
+    "标签：1girl, black hair, red eyes, sitting, classroom, looking out window, school uniform, indoors\n\n"
+    "中文描述：金发双马尾女孩在海边比基尼，夕阳逆光\n"
+    "标签：1girl, blonde hair, twintails, beach, bikini, sunset, backlighting, ocean\n\n"
+    "中文描述：{text}\n"
     "标签："
 )
 
@@ -257,8 +300,12 @@ def _sanitize_llm_output(raw):
     text = re.sub(r"[{}\[\]]", "", text)
 
     banned = {
+        # 质量词
         "masterpiece", "best quality", "amazing quality", "very aesthetic",
-        "absurdres", "highres", "high quality",
+        "absurdres", "highres", "high quality", "best aesthetic",
+        # NSFW 露骨标签
+        "nude", "naked", "nipples", "pussy", "penis", "cum", "sex",
+        "vaginal", "anal", "oral", "penetration", "ejaculation",
     }
     tags = []
     seen = set()

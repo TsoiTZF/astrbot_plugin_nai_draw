@@ -7,13 +7,17 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api import logger
 import asyncio
+import base64
 import math
 import random
 import re
 import time
+import uuid
+from pathlib import Path
 
 from .nai_api import NaiAPI, NaiAPIError
 from .translator import to_tags
+from .vangonography_api import hide_file_into_image, extract_file_from_image
 from .presets import (
     MAX_CUSTOM_ARTISTS,
     PRESET_ORDER,
@@ -33,7 +37,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设", "1.5.0")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.6.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -46,7 +50,10 @@ class NaiDrawPlugin(Star):
         self._user_face_variation = {}
         self._user_artists = {}
         self._variant_positions = {}
+        self._last_image = {}
         self._data_dir = StarTools.get_data_dir("astrbot_plugin_nai_draw")
+        self._steg_dir = self._data_dir / "stego"
+        self._steg_dir.mkdir(parents=True, exist_ok=True)
         self._out_dir = self._data_dir / "output"
         self._out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -555,6 +562,7 @@ class NaiDrawPlugin(Star):
             self._clear_cooldown(sender_id, reservation)
             logger.error(f"[叶子的逼] 图片保存失败: {exc}", exc_info=True)
             return event.plain_result("[失败] 图片保存失败，请检查插件数据目录。")
+        self._last_image[str(sender_id)] = str(path)
         if warning:
             logger.info(f"[叶子的逼] {label} 参数提示: {warning}")
         return event.image_result(str(path))
@@ -586,6 +594,193 @@ class NaiDrawPlugin(Star):
         except OSError as exc:
             logger.warning(f"[叶子的逼] 清理输出目录失败: {exc}")
 
+    # ==================== 隐写：结合 vangonography ====================
+
+    @staticmethod
+    def _find_file_segment(event: AstrMessageEvent):
+        """从消息或引用消息中提取 File 段，返回 (url, name) 或 None。"""
+        try:
+            from astrbot.api.message_components import File as CompFile, Reply
+        except ImportError:
+            return None
+        for segment in event.message_obj.message:
+            if isinstance(segment, Reply) and hasattr(segment, 'chain'):
+                for sub in segment.chain:
+                    if isinstance(sub, CompFile) and getattr(sub, 'url', None):
+                        return sub.url, getattr(sub, 'name', 'file')
+            if isinstance(segment, CompFile) and getattr(segment, 'url', None):
+                return segment.url, getattr(segment, 'name', 'file')
+        return None
+
+    @staticmethod
+    def _find_image_segment(event: AstrMessageEvent):
+        """从消息或引用消息中提取 Image 段的 url，返回 url 或 None。"""
+        try:
+            from astrbot.api.message_components import Image as CompImage, Reply
+        except ImportError:
+            return None
+        for segment in event.message_obj.message:
+            if isinstance(segment, Reply) and hasattr(segment, 'chain'):
+                for sub in segment.chain:
+                    if isinstance(sub, CompImage) and getattr(sub, 'url', None):
+                        return sub.url
+            if isinstance(segment, CompImage) and getattr(segment, 'url', None):
+                return segment.url
+        return None
+
+    async def _download_to_bytes(self, url: str) -> bytes:
+        """下载 URL 内容为 bytes，支持 http 和 base64。"""
+        if url.startswith('base64://'):
+            return base64.b64decode(url[len('base64://'):])
+        if url.startswith('http'):
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                    resp.raise_for_status()
+                    return await resp.read()
+        # 本地文件
+        path = Path(url.removeprefix('file://'))
+        return path.read_bytes()
+
+    @filter.command("nai隐写", alias={"nai_steg", "naihide"})
+    async def cmd_steg_hide(self, event: AstrMessageEvent, args: str = ""):
+        """将用户上传的文件隐藏进最近生成的图片中，可选密码加密。
+
+        用法：回复一张文件（或上传文件）后发送 /nai隐写 [密码]
+        会使用该用户最近一次 /nai 生成的图片作为载体。
+        """
+        sender_id = self._sender_id(event)
+
+        # 解析密码：args 中第一个非空内容作为密码
+        password = str(args or "").strip()
+        password = password if password and password.lower() not in {"不需要", "无", "no"} else None
+
+        # 获取用户上传的文件
+        file_info = self._find_file_segment(event)
+        if not file_info:
+            yield event.plain_result(
+                "请上传或引用一个文件后再使用 /nai隐写。\n"
+                "用法：上传文件 + /nai隐写 [密码]\n"
+                "载体为最近一次 /nai 生成的图片。"
+            )
+            return
+
+        file_url, file_name = file_info
+
+        # 获取用户最后生成的图片路径
+        cover_path_str = self._last_image.get(sender_id)
+        if not cover_path_str or not Path(cover_path_str).exists():
+            yield event.plain_result(
+                "未找到你最近生成的图片。请先使用 /nai 生成一张图片，再进行隐写。"
+            )
+            return
+
+        yield event.plain_result("收到。正在处理隐写，请稍候...")
+
+        # 下载用户上传的文件到临时路径
+        session_id = uuid.uuid4().hex[:8]
+        file_tmp = self._steg_dir / f"{session_id}_input"
+        output_path = self._steg_dir / f"{session_id}_stego.png"
+        try:
+            loop = asyncio.get_running_loop()
+            file_data = await loop.run_in_executor(None, self._download_to_bytes, file_url)
+            await loop.run_in_executor(None, file_tmp.write_bytes, file_data)
+
+            # 执行隐写
+            await loop.run_in_executor(
+                None,
+                lambda: hide_file_into_image(
+                    cover_path=Path(cover_path_str),
+                    file_path=file_tmp,
+                    file_name=file_name,
+                    output_path=output_path,
+                    encrypt=bool(password),
+                    password=password,
+                ),
+            )
+
+            yield event.image_result(str(output_path))
+            logger.info(f"[叶子的逼] 隐写完成 sender={sender_id} file={file_name}")
+
+        except Exception as exc:
+            logger.error(f"[叶子的逼] 隐写失败: {exc}", exc_info=True)
+            yield event.plain_result(f"[失败] 隐写失败：{exc}")
+        finally:
+            # 清理临时文件
+            for tmp in (file_tmp, output_path):
+                try:
+                    if tmp.exists():
+                        tmp.unlink()
+                except OSError:
+                    pass
+
+    @filter.command("nai提取", alias={"nai_extract", "naiunhide"})
+    async def cmd_steg_extract(self, event: AstrMessageEvent, args: str = ""):
+        """从图片中提取隐藏的文件，可选密码解密。
+
+        用法：回复一张图片 + /nai提取 [密码]
+        """
+        password = str(args or "").strip()
+        password = password if password and password.lower() not in {"不需要", "无", "no"} else None
+
+        # 获取图片 URL
+        image_url = self._find_image_segment(event)
+        if not image_url:
+            yield event.plain_result(
+                "请上传或引用一张图片后再使用 /nai提取。\n"
+                "用法：回复图片 + /nai提取 [密码]"
+            )
+            return
+
+        yield event.plain_result("收到。正在提取隐藏文件，请稍候...")
+
+        session_id = uuid.uuid4().hex[:8]
+        img_path = self._steg_dir / f"{session_id}_cover.png"
+        try:
+            loop = asyncio.get_running_loop()
+            img_data = await loop.run_in_executor(None, self._download_to_bytes, image_url)
+            await loop.run_in_executor(None, img_path.write_bytes, img_data)
+
+            result_path = await loop.run_in_executor(
+                None,
+                lambda: extract_file_from_image(
+                    image_path=img_path,
+                    output_dir=self._steg_dir,
+                    password=password,
+                ),
+            )
+
+            # 发送提取的文件
+            file_data = await loop.run_in_executor(None, Path(result_path).read_bytes)
+            encoded = base64.b64encode(file_data).decode('ascii')
+            try:
+                from astrbot.api.message_components import Plain
+                from astrbot.core.message.message_event_result import MessageChain
+            except ImportError:
+                MessageChain = list
+                Plain = str
+
+            yield MessageChain([
+                Plain(f"✅ 提取完成：{Path(result_path).name}"),
+                __import__('astrbot.api.message_components', fromlist=['File']).File.fromBytes(
+                    file_data, Path(result_path).name
+                ) if hasattr(__import__('astrbot.api.message_components', fromlist=['File']).File, 'fromBytes')
+                else Plain(f"文件已保存到：{result_path}"),
+            ])
+            logger.info(f"[叶子的逼] 提取完成 file={Path(result_path).name}")
+
+        except ValueError as exc:
+            yield event.plain_result(f"提取失败：{exc}")
+        except Exception as exc:
+            logger.error(f"[叶子的逼] 提取失败: {exc}", exc_info=True)
+            yield event.plain_result(f"[失败] 提取失败：{exc}")
+        finally:
+            try:
+                if img_path.exists():
+                    img_path.unlink()
+            except OSError:
+                pass
+
     async def terminate(self):
         self._last_call.clear()
         self._user_presets.clear()
@@ -593,4 +788,5 @@ class NaiDrawPlugin(Star):
         self._user_face_variation.clear()
         self._user_artists.clear()
         self._variant_positions.clear()
+        self._last_image.clear()
         logger.info("[叶子的逼] 插件已卸载")

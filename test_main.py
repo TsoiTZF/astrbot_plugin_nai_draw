@@ -1,12 +1,16 @@
 """NAI 插件主流程测试，使用最小 AstrBot 桩，不启动真实 AstrBot。"""
 
 import asyncio
+import base64
 import importlib
+import io
 import sys
 import tempfile
 import types
 from pathlib import Path
 from unittest.mock import patch
+
+from PIL import Image
 
 _failures = []
 
@@ -24,6 +28,7 @@ def install_astrbot_stub(data_dir):
     api = types.ModuleType("astrbot.api")
     event_module = types.ModuleType("astrbot.api.event")
     star_module = types.ModuleType("astrbot.api.star")
+    component_module = types.ModuleType("astrbot.api.message_components")
 
     class FakeFilter:
         @staticmethod
@@ -42,6 +47,33 @@ def install_astrbot_stub(data_dir):
     def register(*args, **kwargs):
         return lambda cls: cls
 
+    class FakePlain:
+        def __init__(self, text):
+            self.text = text
+
+    class FakeImage:
+        def __init__(self, file="", url="", path=""):
+            self.file = file
+            self.url = url
+            self.path = path or file
+
+        @classmethod
+        def fromFileSystem(cls, path):
+            return cls(file=path, path=path)
+
+    class FakeFile:
+        def __init__(self, name="", file="", url=""):
+            self.name = name
+            self.file = file
+            self.url = url
+
+        async def get_file(self, allow_return_url=False):
+            return self.file or self.url
+
+    class FakeReply:
+        def __init__(self, chain=None):
+            self.chain = list(chain or [])
+
     logger = types.SimpleNamespace(
         debug=lambda *args, **kwargs: None,
         info=lambda *args, **kwargs: None,
@@ -58,19 +90,25 @@ def install_astrbot_stub(data_dir):
     star_module.Star = FakeStar
     star_module.StarTools = FakeStarTools
     star_module.register = register
+    component_module.Plain = FakePlain
+    component_module.Image = FakeImage
+    component_module.File = FakeFile
+    component_module.Reply = FakeReply
     sys.modules.update(
         {
             "astrbot": root,
             "astrbot.api": api,
             "astrbot.api.event": event_module,
             "astrbot.api.star": star_module,
+            "astrbot.api.message_components": component_module,
         }
     )
 
 
 class FakeEvent:
-    def __init__(self, sender_id="user-1"):
+    def __init__(self, sender_id="user-1", message=None):
         self.sender_id = sender_id
+        self.message_obj = types.SimpleNamespace(message=list(message or []))
 
     def get_sender_id(self):
         return self.sender_id
@@ -81,6 +119,9 @@ class FakeEvent:
     def image_result(self, path):
         return ("image", path)
 
+    def chain_result(self, chain):
+        return ("chain", chain)
+
 
 async def collect_draw_results(plugin, event, args):
     """收集绘图指令依次发出的进度与最终结果。"""
@@ -89,6 +130,10 @@ async def collect_draw_results(plugin, event, args):
 
 def run_draw(plugin, event, args):
     return asyncio.run(collect_draw_results(plugin, event, args))
+
+
+async def collect_steg_results(plugin, event, args=""):
+    return [result async for result in plugin.cmd_steg_extract(event, args)]
 
 
 class FailingAPI:
@@ -552,6 +597,96 @@ def test_artist_command():
         check(not plugin._user_artists, "插件卸载时清理个人画师串")
 
 
+def test_stego_commands():
+    print("隐写传输与提取指令：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(object(), {"keep_images": False})
+        component_module = sys.modules["astrbot.api.message_components"]
+
+        cover_path = plugin._cover_dir / "cover.png"
+        Image.new("RGB", (48, 48), (90, 140, 190)).save(cover_path)
+        generated_path = plugin._out_dir / "nai_test.png"
+        Image.new("RGB", (24, 24), (220, 80, 120)).save(generated_path)
+
+        user = FakeEvent("stego-user")
+        password = "CaseSensitive-Secret"
+        enabled = asyncio.run(plugin.cmd_steg_toggle(user, f"开 {password}"))
+        status = asyncio.run(plugin.cmd_steg_toggle(user, "状态"))
+        check("已设置密码" in enabled[1], "开启隐写时确认已设置密码")
+        check(password not in enabled[1] and password not in status[1], "聊天结果不回显密码")
+        check(plugin._steg_password["stego-user"] == password, "密码大小写原样保留")
+
+        hidden = asyncio.run(
+            plugin._hide_into_cover(user, generated_path, "stego-user", "none")
+        )
+        check(hidden[0] == "chain", "隐写结果使用复合消息反馈")
+        chain = hidden[1]
+        file_segments = [
+            item for item in chain if isinstance(item, component_module.File)
+        ]
+        check(len(file_segments) == 1, "隐写 PNG 以原始文件组件发送")
+        check(
+            any(isinstance(item, component_module.Image) for item in chain),
+            "同时发送明确标注的载体预览",
+        )
+        stego_path = Path(file_segments[0].file)
+        check(stego_path.is_file(), "发送前保留服务器隐写原图")
+        check(plugin._last_stego["stego-user"] == str(stego_path), "记录个人最近隐写原图")
+
+        latest = asyncio.run(collect_steg_results(plugin, user, "最近"))
+        check(latest[0][0] == "plain" and "正在提取" in latest[0][1], "最近提取先反馈进度")
+        check(latest[-1][0] == "image", "无需回传文件即可提取最近一次")
+
+        reply = component_module.Reply(
+            [
+                component_module.Image(url=str(cover_path)),
+                component_module.File(name=stego_path.name, file=str(stego_path)),
+            ]
+        )
+        replied = asyncio.run(
+            collect_steg_results(
+                plugin,
+                FakeEvent("stego-user", [reply]),
+                password,
+            )
+        )
+        check(replied[-1][0] == "image", "引用同时含预览和文件时优先提取原始文件")
+
+        corrupted = asyncio.run(
+            collect_steg_results(
+                plugin,
+                FakeEvent(
+                    "stego-user",
+                    [component_module.Image(url=str(cover_path))],
+                ),
+            )
+        )
+        check(
+            corrupted[-1][0] == "plain"
+            and "QQ 会压缩图片" in corrupted[-1][1],
+            "普通图片提取失败时说明平台压缩原因",
+        )
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (32, 32), (12, 34, 56)).save(buffer, "PNG")
+        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        added = asyncio.run(
+            plugin.cmd_add_cover(
+                FakeEvent(
+                    "stego-user",
+                    [component_module.Image(url=f"base64://{encoded}")],
+                ),
+                "../新增载体",
+            )
+        )
+        check(added[0] == "plain" and "[成功]" in added[1], "异步下载链路可直接添加载体")
+        check((plugin._cover_dir / "新增载体.png").is_file(), "自定义载体名限制在图库目录")
+
+        asyncio.run(plugin.terminate())
+        check(not plugin._last_stego, "插件卸载时清理最近隐写记录")
+
+
 def test_failure_releases_cooldown():
     print("失败恢复：")
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -619,6 +754,7 @@ def main():
         test_nsfw_command,
         test_face_variation_command,
         test_artist_command,
+        test_stego_commands,
         test_failure_releases_cooldown,
         test_variant_rotation,
     ):

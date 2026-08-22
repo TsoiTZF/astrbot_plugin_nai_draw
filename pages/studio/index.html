@@ -7,33 +7,35 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="app">
-      <aside class="rail">
-        <header class="brand">
-          <p class="mark">NAI 4.5</p>
-          <h1>绘台</h1>
-        </header>
+    <header class="mast">
+      <div class="wordmark">
+        <span class="issue">Vol. 45</span>
+        <h1>绘台</h1>
+        <p class="kicker">叶子的逼 · NovelAI</p>
+      </div>
+      <dl class="meters">
+        <div>
+          <dt>上游</dt>
+          <dd id="status-api">读取中</dd>
+        </div>
+        <div>
+          <dt>模型</dt>
+          <dd id="status-model">—</dd>
+        </div>
+        <div>
+          <dt>成图</dt>
+          <dd id="status-gallery">0</dd>
+        </div>
+        <div>
+          <dt>载体</dt>
+          <dd id="status-covers">0</dd>
+        </div>
+      </dl>
+    </header>
 
-        <dl class="meters">
-          <div>
-            <dt>上游</dt>
-            <dd id="status-api">读取中</dd>
-          </div>
-          <div>
-            <dt>模型</dt>
-            <dd id="status-model">—</dd>
-          </div>
-          <div>
-            <dt>成图</dt>
-            <dd id="status-gallery">0</dd>
-          </div>
-          <div>
-            <dt>载体</dt>
-            <dd id="status-covers">0</dd>
-          </div>
-        </dl>
-
-        <form id="draw-form" class="panel">
+    <div class="spread">
+      <aside class="colophon">
+        <form id="draw-form">
           <label class="field">
             <span>画面</span>
             <textarea
@@ -45,11 +47,11 @@
             ></textarea>
           </label>
 
-          <fieldset class="chips" id="preset-grid">
+          <fieldset class="tags" id="preset-grid">
             <legend>画风</legend>
           </fieldset>
 
-          <fieldset class="choices sizes" id="size-row">
+          <fieldset class="formats" id="size-row">
             <legend>画幅</legend>
           </fieldset>
 
@@ -89,68 +91,63 @@
         </form>
       </aside>
 
-      <main class="stage">
-        <div class="pegs" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
+      <section class="plate-wrap" aria-labelledby="board-title">
+        <div class="plate-bar">
+          <h2 id="board-title">打样</h2>
+          <p id="lightbox-meta">还没有图。写画面，再出图。</p>
+          <div class="plate-actions">
+            <button id="download-result" class="ghost" type="button" disabled>下载成图</button>
+            <button id="download-stego" class="ghost" type="button" hidden>下载隐写 PNG</button>
+          </div>
         </div>
 
-        <section class="canvas" aria-labelledby="board-title">
-          <div class="canvas-bar">
-            <h2 id="board-title">成图</h2>
-            <p id="lightbox-meta">还没有图。写画面，再出图。</p>
-            <div class="canvas-actions">
-              <button id="download-result" class="ghost" type="button" disabled>下载</button>
-              <button id="download-stego" class="ghost" type="button" hidden>隐写 PNG</button>
-            </div>
+        <figure class="plate" id="result-frame">
+          <span class="crop tl" aria-hidden="true"></span>
+          <span class="crop tr" aria-hidden="true"></span>
+          <span class="crop bl" aria-hidden="true"></span>
+          <span class="crop br" aria-hidden="true"></span>
+          <img id="result-image" alt="当前成图" hidden />
+          <figcaption id="result-empty">等待打样</figcaption>
+        </figure>
+
+        <dl class="facts" id="result-sheet" hidden>
+          <div>
+            <dt>预设</dt>
+            <dd id="sheet-preset">—</dd>
           </div>
+          <div>
+            <dt>尺寸</dt>
+            <dd id="sheet-size">—</dd>
+          </div>
+          <div>
+            <dt>NSFW</dt>
+            <dd id="sheet-nsfw">—</dd>
+          </div>
+          <div>
+            <dt>脸型</dt>
+            <dd id="sheet-face">—</dd>
+          </div>
+        </dl>
 
-          <figure class="cel" id="result-frame">
-            <img id="result-image" alt="当前成图" hidden />
-            <figcaption id="result-empty">
-              <span class="cross" aria-hidden="true"></span>
-              等待出图
-            </figcaption>
-          </figure>
-
-          <dl class="facts" id="result-sheet" hidden>
-            <div>
-              <dt>预设</dt>
-              <dd id="sheet-preset">—</dd>
-            </div>
-            <div>
-              <dt>尺寸</dt>
-              <dd id="sheet-size">—</dd>
-            </div>
-            <div>
-              <dt>NSFW</dt>
-              <dd id="sheet-nsfw">—</dd>
-            </div>
-            <div>
-              <dt>脸型</dt>
-              <dd id="sheet-face">—</dd>
-            </div>
-          </dl>
-
-          <details class="prompt-sheet">
-            <summary>正面 / 负面提示词</summary>
-            <p id="sheet-prompt">—</p>
-            <p id="sheet-negative">—</p>
-          </details>
-          <p class="note" id="result-note" hidden></p>
-        </section>
-      </main>
+        <details class="prompt-sheet">
+          <summary>正面 / 负面提示词</summary>
+          <p id="sheet-prompt">—</p>
+          <p id="sheet-negative">—</p>
+        </details>
+        <p class="note" id="result-note" hidden></p>
+      </section>
     </div>
 
-    <section class="strip" aria-labelledby="gallery-title">
-      <div class="strip-head">
+    <section class="folio" aria-labelledby="gallery-title">
+      <div class="folio-head">
         <h2 id="gallery-title">最近成图</h2>
-        <p>点开一张放到成图区。</p>
+        <p>点开一张放到打样区。</p>
       </div>
       <div class="thumbs" id="gallery"></div>
     </section>
 
-    <section class="strip" aria-labelledby="cover-title">
-      <div class="strip-head">
+    <section class="folio" aria-labelledby="cover-title">
+      <div class="folio-head">
         <div>
           <h2 id="cover-title">载体</h2>
           <p>隐写时随机抽一张当外壳。只认原始 PNG，不要用聊天压缩图。</p>
@@ -166,8 +163,8 @@
       <div class="thumbs" id="covers"></div>
     </section>
 
-    <section class="strip" aria-labelledby="extract-title">
-      <div class="strip-head">
+    <section class="folio" aria-labelledby="extract-title">
+      <div class="folio-head">
         <div>
           <h2 id="extract-title">拆封</h2>
           <p>放入机器人发出的原始隐写 PNG。</p>

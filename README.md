@@ -40,6 +40,8 @@
 
 ### 图片隐写功能
 
+隐写能力基于 [astrbot_plugin_vangonography](https://github.com/shskjw/astrbot_plugin_vangonography)（作者 shskjw）的图片隐写实现，本插件在其 LSB 隐写与加解密思路上做成了出图后自动入载体、原始 PNG 发送和离线提取。
+
 隐写模式开启后，`/nai` 生成的图片会自动隐藏进载体图库的随机载体图中。机器人会发送
 一张明确标注的载体预览，再把真正的隐写 PNG 作为原始文件发送。使用 `/nai提取` 可以
 从原始文件还原生成图。

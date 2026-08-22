@@ -346,7 +346,7 @@ els.form.addEventListener("submit", async (event) => {
     return;
   }
   setBusy(true);
-  els.lightboxMeta.textContent = "正在出图…";
+  els.lightboxMeta.textContent = "正在打样…";
   try {
     const result = await apiPost("generate", {
       prompt: els.prompt.value,
@@ -360,7 +360,7 @@ els.form.addEventListener("submit", async (event) => {
     });
     showResult(result);
     renderGallery(result.gallery || []);
-    showToast(result.stego?.ok ? "成图已写入载体。" : "成图已出。");
+    showToast(result.stego?.ok ? "成图已写入载体。" : "打样完成。");
   } catch (error) {
     showToast(errorMessage(error), "error");
     els.lightboxMeta.textContent = "出图失败，检查描述或上游配置。";

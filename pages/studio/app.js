@@ -360,7 +360,7 @@ els.form.addEventListener("submit", async (event) => {
     });
     showResult(result);
     renderGallery(result.gallery || []);
-    showToast(result.stego?.ok ? "成图已写入载体。" : "成图已钉上。");
+    showToast(result.stego?.ok ? "成图已写入载体。" : "成图已出。");
   } catch (error) {
     showToast(errorMessage(error), "error");
     els.lightboxMeta.textContent = "出图失败，检查描述或上游配置。";

@@ -7,13 +7,11 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="wash" aria-hidden="true"></div>
-    <div class="studio">
-      <aside class="desk">
+    <div class="app">
+      <aside class="rail">
         <header class="brand">
-          <p class="kicker">叶子的逼</p>
+          <p class="mark">NAI 4.5</p>
           <h1>绘台</h1>
-          <p class="lede">把画面写在稿纸上，成图钉在右侧。</p>
         </header>
 
         <dl class="meters">
@@ -35,13 +33,13 @@
           </div>
         </dl>
 
-        <form id="draw-form" class="sheet">
+        <form id="draw-form" class="panel">
           <label class="field">
             <span>画面</span>
             <textarea
               id="prompt"
               name="prompt"
-              rows="7"
+              rows="8"
               required
               placeholder="长发女孩，夜雨旗袍，侧光，看着镜头"
             ></textarea>
@@ -51,7 +49,7 @@
             <legend>画风</legend>
           </fieldset>
 
-          <fieldset class="chips sizes" id="size-row">
+          <fieldset class="choices sizes" id="size-row">
             <legend>画幅</legend>
           </fieldset>
 
@@ -77,7 +75,7 @@
             </label>
             <label class="switch">
               <input id="stego" type="checkbox" />
-              <span>隐写入载体</span>
+              <span>隐写</span>
             </label>
           </div>
 
@@ -86,72 +84,76 @@
             <input id="stego-password" type="password" autocomplete="off" />
           </label>
 
-          <div class="actions">
-            <button id="draw-button" type="submit">出图</button>
-            <p class="hint" id="form-hint">中文会先转成标签，再送给 NAI 4.5。</p>
-          </div>
+          <button id="draw-button" type="submit">出图</button>
+          <p class="hint" id="form-hint">中文会先转成标签，再送给 NAI 4.5。</p>
         </form>
       </aside>
 
-      <section class="board" aria-labelledby="board-title">
-        <div class="board-head">
-          <div>
-            <p class="kicker">成图</p>
-            <h2 id="board-title">钉板</h2>
-          </div>
-          <p id="lightbox-meta">还没有图。先写画面，再出图。</p>
+      <main class="stage">
+        <div class="pegs" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
         </div>
 
-        <figure class="pin" id="result-frame">
-          <img id="result-image" alt="当前成图" hidden />
-          <figcaption id="result-empty">空钉板</figcaption>
-        </figure>
+        <section class="canvas" aria-labelledby="board-title">
+          <div class="canvas-bar">
+            <h2 id="board-title">成图</h2>
+            <p id="lightbox-meta">还没有图。写画面，再出图。</p>
+            <div class="canvas-actions">
+              <button id="download-result" class="ghost" type="button" disabled>下载</button>
+              <button id="download-stego" class="ghost" type="button" hidden>隐写 PNG</button>
+            </div>
+          </div>
 
-        <dl class="facts" id="result-sheet" hidden>
-          <div>
-            <dt>预设</dt>
-            <dd id="sheet-preset">—</dd>
-          </div>
-          <div>
-            <dt>尺寸</dt>
-            <dd id="sheet-size">—</dd>
-          </div>
-          <div>
-            <dt>NSFW</dt>
-            <dd id="sheet-nsfw">—</dd>
-          </div>
-          <div>
-            <dt>脸型</dt>
-            <dd id="sheet-face">—</dd>
-          </div>
-        </dl>
+          <figure class="cel" id="result-frame">
+            <img id="result-image" alt="当前成图" hidden />
+            <figcaption id="result-empty">
+              <span class="cross" aria-hidden="true"></span>
+              等待出图
+            </figcaption>
+          </figure>
 
-        <details class="prompt-sheet">
-          <summary>正面 / 负面提示词</summary>
-          <p id="sheet-prompt">—</p>
-          <p id="sheet-negative">—</p>
-        </details>
-        <p class="note" id="result-note" hidden></p>
-        <div class="actions">
-          <button id="download-result" type="button" disabled>下载成图</button>
-          <button id="download-stego" class="ghost" type="button" hidden>下载隐写 PNG</button>
-        </div>
-      </section>
+          <dl class="facts" id="result-sheet" hidden>
+            <div>
+              <dt>预设</dt>
+              <dd id="sheet-preset">—</dd>
+            </div>
+            <div>
+              <dt>尺寸</dt>
+              <dd id="sheet-size">—</dd>
+            </div>
+            <div>
+              <dt>NSFW</dt>
+              <dd id="sheet-nsfw">—</dd>
+            </div>
+            <div>
+              <dt>脸型</dt>
+              <dd id="sheet-face">—</dd>
+            </div>
+          </dl>
+
+          <details class="prompt-sheet">
+            <summary>正面 / 负面提示词</summary>
+            <p id="sheet-prompt">—</p>
+            <p id="sheet-negative">—</p>
+          </details>
+          <p class="note" id="result-note" hidden></p>
+        </section>
+      </main>
     </div>
 
-    <section class="rail" aria-labelledby="gallery-title">
-      <div class="rail-head">
+    <section class="strip" aria-labelledby="gallery-title">
+      <div class="strip-head">
         <h2 id="gallery-title">最近成图</h2>
-        <p>点开一张，钉回右侧。</p>
+        <p>点开一张放到成图区。</p>
       </div>
       <div class="thumbs" id="gallery"></div>
     </section>
 
-    <section class="rail" aria-labelledby="cover-title">
-      <div class="rail-head">
+    <section class="strip" aria-labelledby="cover-title">
+      <div class="strip-head">
         <div>
           <h2 id="cover-title">载体</h2>
-          <p>隐写时随机抽一张当外壳。聊天压缩图不能提取，只认原始 PNG。</p>
+          <p>隐写时随机抽一张当外壳。只认原始 PNG，不要用聊天压缩图。</p>
         </div>
         <form id="cover-form" class="inline-form">
           <label class="file-pill">
@@ -164,11 +166,11 @@
       <div class="thumbs" id="covers"></div>
     </section>
 
-    <section class="rail extract" aria-labelledby="extract-title">
-      <div class="rail-head">
+    <section class="strip" aria-labelledby="extract-title">
+      <div class="strip-head">
         <div>
           <h2 id="extract-title">拆封</h2>
-          <p>放入机器人发出的原始隐写 PNG，不要用预览图。</p>
+          <p>放入机器人发出的原始隐写 PNG。</p>
         </div>
         <form id="extract-form" class="inline-form">
           <label class="field compact">

@@ -307,7 +307,8 @@ def test_page_files():
     check("AstrBotPluginPage" in js, "脚本走官方 bridge")
     check('apiPost("generate"' in js, "出图走 generate 接口")
     check('[data-theme="dark"]' in css or '[data-theme="light"]' in css, "样式支持 Dashboard 主题")
-    check("绘台" in html, "页面标题改为绘台")
+    check("绘台" in html, "页面标题为绘台")
+    check("pegs" in html and "cel" in html, "成图区使用定位孔和赛璐璐框")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

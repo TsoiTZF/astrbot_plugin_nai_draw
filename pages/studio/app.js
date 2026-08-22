@@ -1,10 +1,10 @@
 function createFallbackBridge() {
-  const message = "请在 AstrBot 插件详情页打开暗房";
+  const message = "请在 AstrBot 插件详情页打开绘台";
   const fail = async () => {
     throw new Error(message);
   };
   return {
-    ready: async () => ({ isDark: false, pageTitle: "暗房" }),
+    ready: async () => ({ isDark: false, pageTitle: "绘台" }),
     apiGet: async (endpoint) => {
       if (endpoint !== "bootstrap") {
         throw new Error(message);
@@ -274,8 +274,8 @@ function applyBootstrap(data) {
   els.nsfw.checked = Boolean(data.allow_nsfw);
   els.face.checked = data.enable_face_variation !== false;
   els.formHint.textContent = data.configured
-    ? "中文会先转成标签，再送进 NAI 4.5。"
-    : "先在管理面板填写 API 地址和密钥，暗房才能出片。";
+    ? "中文会先转成标签，再送给 NAI 4.5。"
+    : "先在管理面板填写 API 地址和密钥，绘台才能出图。";
   renderPresets(data.presets || [], state.preset);
   renderSizes(data.sizes || [], state.size);
   renderGallery(data.gallery || []);
@@ -284,7 +284,7 @@ function applyBootstrap(data) {
 
 function renderGallery(items) {
   els.galleryCount.textContent = String(items.length);
-  renderThumbList(els.gallery, items, "还没有样张。", async (item) => {
+  renderThumbList(els.gallery, items, "还没有成图。", async (item) => {
     try {
       const result = await apiGet("preview", { name: item.name });
       showResult({
@@ -305,7 +305,7 @@ function renderCovers(items) {
   renderThumbList(
     els.covers,
     items,
-    "载体柜是空的。隐写前先加几张图。",
+    "还没有载体。隐写前先加几张图。",
     async (item) => {
       try {
         const result = await apiGet("preview", { name: item.name });
@@ -346,7 +346,7 @@ els.form.addEventListener("submit", async (event) => {
     return;
   }
   setBusy(true);
-  els.lightboxMeta.textContent = "暗房正在冲洗…";
+  els.lightboxMeta.textContent = "正在出图…";
   try {
     const result = await apiPost("generate", {
       prompt: els.prompt.value,
@@ -360,10 +360,10 @@ els.form.addEventListener("submit", async (event) => {
     });
     showResult(result);
     renderGallery(result.gallery || []);
-    showToast(result.stego?.ok ? "样张已写入载体。" : "样张已出灯箱。");
+    showToast(result.stego?.ok ? "成图已写入载体。" : "成图已钉上。");
   } catch (error) {
     showToast(errorMessage(error), "error");
-    els.lightboxMeta.textContent = "冲洗失败，检查描述或上游配置。";
+    els.lightboxMeta.textContent = "出图失败，检查描述或上游配置。";
   } finally {
     setBusy(false);
   }

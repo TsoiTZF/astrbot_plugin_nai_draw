@@ -1,9 +1,9 @@
 {
   "pages": {
     "studio": {
-      "title": "Darkroom",
-      "description": "Generate images, inspect proofs, and manage stego covers in the Dashboard.",
-      "heading": "Light table"
+      "title": "Studio",
+      "description": "Generate images, inspect results, and manage stego covers in the Dashboard.",
+      "heading": "Studio"
     }
   }
 }

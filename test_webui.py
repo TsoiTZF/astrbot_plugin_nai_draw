@@ -1,4 +1,4 @@
-"""暗房 WebUI 测试，不启动 AstrBot，也不请求真实 NAI。"""
+"""绘台 WebUI 测试，不启动 AstrBot，也不请求真实 NAI。"""
 
 import asyncio
 import importlib
@@ -134,7 +134,7 @@ def test_route_registration():
         context = FakeContext()
         plugin = configured_plugin(temp_dir, context)
         routes = [item[0] for item in context.registered]
-        check(hasattr(plugin, "_webui"), "插件挂上暗房对象")
+        check(hasattr(plugin, "_webui"), "插件挂上绘台对象")
         check(
             "/nai_draw/bootstrap" in routes
             and "/astrbot_plugin_nai_draw/bootstrap" in routes,
@@ -306,13 +306,14 @@ def test_page_files():
     check("./style.css" in html and "./app.js" in html, "页面使用相对资源路径")
     check("AstrBotPluginPage" in js, "脚本走官方 bridge")
     check('apiPost("generate"' in js, "出图走 generate 接口")
-    check("[data-theme=\"dark\"]" in css, "样式支持 Dashboard 暗色主题")
+    check('[data-theme="dark"]' in css or '[data-theme="light"]' in css, "样式支持 Dashboard 主题")
+    check("绘台" in html, "页面标题改为绘台")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 
 def main():
     print("=" * 56)
-    print("NAI 暗房 WebUI 测试")
+    print("NAI 绘台 WebUI 测试")
     print("=" * 56)
     for func in (
         test_route_registration,

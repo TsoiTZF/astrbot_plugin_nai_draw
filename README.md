@@ -1,6 +1,6 @@
 # 叶子的逼
 
-基于 NovelAI Diffusion 4.5 的 AstrBot 绘画插件，内置画师串预设、中文标签转换、失败重试，以及 Dashboard 暗房 WebUI。
+基于 NovelAI Diffusion 4.5 的 AstrBot 绘画插件，内置画师串预设、中文标签转换、失败重试，以及 Dashboard 绘台 WebUI。
 
 ## 指令
 
@@ -185,20 +185,20 @@ LLM 调用。
 
 宽高须为 64 的倍数，超出范围或非法值会回退到默认尺寸，不会向上游发送无效请求。
 
-## 暗房 WebUI
+## 绘台 WebUI
 
-插件在 AstrBot Dashboard 的插件详情页提供「暗房」页面，用于浏览器出图、查看最近样张、管理隐写载体和拆封原始 PNG。页面走官方 Plugin Pages：静态文件在 `pages/studio/`，后端接口由 `webui.py` 注册，出图仍复用聊天同一条 `_produce_image` 链路。
+插件在 AstrBot Dashboard 的插件详情页提供「绘台」页面，用于浏览器出图、查看最近成图、管理隐写载体和拆封原始 PNG。页面走官方 Plugin Pages：静态文件在 `pages/studio/`，后端接口由 `webui.py` 注册，出图仍复用聊天同一条 `_produce_image` 链路。
 
-打开方式：WebUI → 插件 → 叶子的逼 → 暗房。
+打开方式：WebUI → 插件 → 叶子的逼 → 绘台。
 
 页面能力：
 
 - 选择 0～8 号预设、竖/方/横/大图，填写中文或英文描述后出图
 - 开关 NSFW、自动脸型、个人画师串和隐写入载体
-- 查看最近样张并下载 PNG
+- 查看最近成图并下载 PNG
 - 上传/删除载体图，从原始隐写 PNG 拆出生成图
 
-API 地址和密钥仍在管理面板的 `_conf_schema.json` 中填写，暗房不重复做密钥表单。
+API 地址和密钥仍在管理面板的 `_conf_schema.json` 中填写，绘台不重复做密钥表单。
 
 ## 配置
 
@@ -273,6 +273,6 @@ python test_webui.py
 中英混写保留、LLM 输出清洗（剔除解释文字、权重符号、质量词、画师串）与故障降级
 路径。`test_nai_api.py` 覆盖 Base64、URL 图片、重试、超时与错误响应。
 `test_vangonography_api.py` 覆盖 v2 加密与无加密往返、密码错误、SHA-256 完整性校验、
-平台重编码破坏、旧格式兼容、容量扩展和离线命令。`test_webui.py` 覆盖暗房路由注册、启动数据、
+平台重编码破坏、旧格式兼容、容量扩展和离线命令。`test_webui.py` 覆盖绘台路由注册、启动数据、
 出图校验、路径穿越、中文载体名、隐写拆封和页面文件契约。全部网络和 LLM 行为均用桩对象模拟，
 不产生真实请求。

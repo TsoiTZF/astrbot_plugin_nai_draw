@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>暗房</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="mast">
+      <div>
+        <p class="kicker">叶子的逼 · 暗房</p>
+        <h1>看片台</h1>
+      </div>
+      <dl class="status" id="status-board">
+        <div>
+          <dt>上游</dt>
+          <dd id="status-api">读取中</dd>
+        </div>
+        <div>
+          <dt>模型</dt>
+          <dd id="status-model">—</dd>
+        </div>
+        <div>
+          <dt>样张</dt>
+          <dd id="status-gallery">0</dd>
+        </div>
+        <div>
+          <dt>载体</dt>
+          <dd id="status-covers">0</dd>
+        </div>
+      </dl>
+    </header>
+
+    <main class="stage">
+      <section class="console" aria-labelledby="console-title">
+        <div class="section-head">
+          <h2 id="console-title">出片</h2>
+          <p>描述进暗房，样张出灯箱。预设、尺寸和隐写都在这一侧完成。</p>
+        </div>
+
+        <form id="draw-form" class="draw-form">
+          <label class="field prompt-field">
+            <span>画面描述</span>
+            <textarea
+              id="prompt"
+              name="prompt"
+              rows="6"
+              required
+              placeholder="长发女孩，夜雨旗袍，侧光，看着镜头"
+            ></textarea>
+          </label>
+
+          <fieldset class="preset-grid" id="preset-grid">
+            <legend>画风</legend>
+          </fieldset>
+
+          <fieldset class="size-row" id="size-row">
+            <legend>画幅</legend>
+          </fieldset>
+
+          <label class="field">
+            <span>个人画师串</span>
+            <input
+              id="artists"
+              name="artists"
+              type="text"
+              placeholder="artist:wlop, {artist:guweiz}"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="toggles">
+            <label class="switch">
+              <input id="nsfw" type="checkbox" />
+              <span>NSFW</span>
+            </label>
+            <label class="switch">
+              <input id="face" type="checkbox" checked />
+              <span>自动脸型</span>
+            </label>
+            <label class="switch">
+              <input id="stego" type="checkbox" />
+              <span>隐写入载体</span>
+            </label>
+          </div>
+
+          <label class="field" id="stego-password-field" hidden>
+            <span>隐写密码（可选）</span>
+            <input id="stego-password" type="password" autocomplete="off" />
+          </label>
+
+          <div class="actions">
+            <button id="draw-button" type="submit">冲洗样张</button>
+            <p class="hint" id="form-hint">中文会先转成标签，再送进 NAI 4.5。</p>
+          </div>
+        </form>
+      </section>
+
+      <section class="lightbox" aria-labelledby="lightbox-title">
+        <div class="section-head">
+          <h2 id="lightbox-title">灯箱</h2>
+          <p id="lightbox-meta">还没有样张。先写一句画面，再按冲洗。</p>
+        </div>
+        <figure class="frame" id="result-frame">
+          <img id="result-image" alt="当前样张" hidden />
+          <figcaption id="result-empty">等待第一张样张</figcaption>
+        </figure>
+        <dl class="sheet" id="result-sheet" hidden>
+          <div>
+            <dt>预设</dt>
+            <dd id="sheet-preset">—</dd>
+          </div>
+          <div>
+            <dt>尺寸</dt>
+            <dd id="sheet-size">—</dd>
+          </div>
+          <div>
+            <dt>NSFW</dt>
+            <dd id="sheet-nsfw">—</dd>
+          </div>
+          <div>
+            <dt>脸型</dt>
+            <dd id="sheet-face">—</dd>
+          </div>
+        </dl>
+        <details class="prompt-sheet">
+          <summary>正面 / 负面提示词</summary>
+          <p id="sheet-prompt">—</p>
+          <p id="sheet-negative">—</p>
+        </details>
+        <p class="note" id="result-note" hidden></p>
+        <div class="actions">
+          <button id="download-result" type="button" disabled>下载样张</button>
+          <button id="download-stego" type="button" hidden>下载隐写 PNG</button>
+        </div>
+      </section>
+    </main>
+
+    <section class="gallery-band" aria-labelledby="gallery-title">
+      <div class="section-head">
+        <h2 id="gallery-title">样张墙</h2>
+        <p>最近冲洗的 PNG，点开即可回到灯箱。</p>
+      </div>
+      <div class="thumbs" id="gallery"></div>
+    </section>
+
+    <section class="cover-band" aria-labelledby="cover-title">
+      <div class="section-head">
+        <h2 id="cover-title">载体柜</h2>
+        <p>隐写模式会从这里随机抽一张图当外壳。QQ 压缩图不能提取，必须保存原始 PNG。</p>
+      </div>
+      <form id="cover-form" class="cover-form">
+        <label class="file-pill">
+          <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" />
+          <span>加入载体</span>
+        </label>
+        <p class="hint" id="cover-hint"></p>
+      </form>
+      <div class="thumbs" id="covers"></div>
+    </section>
+
+    <section class="extract-band" aria-labelledby="extract-title">
+      <div class="section-head">
+        <h2 id="extract-title">拆封</h2>
+        <p>把机器人发出的原始隐写 PNG 拖进来，不要用聊天里的压缩预览图。</p>
+      </div>
+      <form id="extract-form" class="extract-form">
+        <label class="field">
+          <span>密码（没有就留空）</span>
+          <input id="extract-password" type="password" autocomplete="off" />
+        </label>
+        <label class="file-pill">
+          <input id="extract-file" type="file" accept="image/png" />
+          <span>选择原始 PNG</span>
+        </label>
+      </form>
+      <p class="hint" id="extract-hint"></p>
+    </section>
+
+    <div id="toast" class="toast" hidden role="status"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 name: astrbot_plugin_nai_draw
 display_name: 叶子的逼
-desc: 叶子的逼，基于 NovelAI Diffusion 4.5，支持无预设模式、个人画师串、中文标签转换、NSFW 与自动脸型开关、图片隐写术。
-version: v1.6.1
+desc: 叶子的逼，基于 NovelAI Diffusion 4.5，支持无预设模式、个人画师串、中文标签转换、NSFW 与自动脸型开关、图片隐写术和暗房 WebUI。
+version: v1.7.0
 author: TsoiTZF
 repo: https://github.com/TsoiTZF/astrbot_plugin_nai_draw

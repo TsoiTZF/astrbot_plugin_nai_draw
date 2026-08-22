@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.6.1
+"""AstrBot 叶子的逼插件 v1.7.0
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -39,13 +39,14 @@ from .presets import (
     sanitize_artist_string,
     variant_count,
 )
+from .webui import register_webui
 
 # 参数前缀：用户可用 -风格 / -尺寸 指定，其余文本作为画面描述
 ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.6.1")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.7.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -69,6 +70,7 @@ class NaiDrawPlugin(Star):
         self._cover_dir.mkdir(parents=True, exist_ok=True)
         self._out_dir = self._data_dir / "output"
         self._out_dir.mkdir(parents=True, exist_ok=True)
+        register_webui(self)
 
     def _resolve_cover_dir(self):
         """解析载体图库目录，配置优先，留空时用插件数据目录下的 covers。"""
@@ -82,6 +84,8 @@ class NaiDrawPlugin(Star):
             logger.warning("[叶子的逼] 未配置 API 地址或密钥，指令将无法使用")
         else:
             logger.info(f"[叶子的逼] 已就绪，默认预设: {self._default_preset()}")
+        if getattr(self, "_webui", None):
+            logger.info("[叶子的逼] 暗房 WebUI 已注册")
 
     # ==================== 配置读取 ====================
 
@@ -533,6 +537,42 @@ class NaiDrawPlugin(Star):
     ):
         """并发受限地生成图片并发送，失败时回报可读原因。"""
         sender_id = sender_id or self._sender_id(event)
+        try:
+            produced = await self._produce_image(
+                description,
+                preset_key,
+                size,
+                sender_id,
+                reservation=reservation,
+                warning=warning,
+            )
+        except NaiAPIError as trans_exc:
+            logger.error(f"[叶子的逼] 生成失败: {trans_exc}")
+            return event.plain_result(f"[失败] {trans_exc}")
+        except (OSError, ValueError, TypeError) as trans_exc:
+            logger.error(f"[叶子的逼] 图片保存失败: {trans_exc}", exc_info=True)
+            return event.plain_result("[失败] 图片保存失败，请检查插件数据目录。")
+        except Exception as trans_exc:
+            logger.error(f"[叶子的逼] 未预期异常: {trans_exc}", exc_info=True)
+            return event.plain_result(f"[失败] 内部错误：{type(trans_exc).__name__}")
+
+        path = produced["path"]
+        # 隐写模式：载体作预览，隐藏数据的 PNG 通过原始文件发送
+        if self._steg_enabled.get(str(sender_id), False):
+            return await self._hide_into_cover(event, path, sender_id, preset_key)
+        return event.image_result(str(path))
+
+    async def _produce_image(
+        self,
+        description,
+        preset_key,
+        size,
+        sender_id,
+        reservation=None,
+        warning="",
+    ):
+        """并发受限地生成并保存图片，聊天与 WebUI 共用此入口。"""
+        sender_id = str(sender_id or "unknown")
         if reservation is None:
             reservation = time.time()
             self._last_call[sender_id] = reservation
@@ -567,29 +607,29 @@ class NaiDrawPlugin(Star):
                         prompt, negative, size, retries=self._retries()
                     ),
                 )
-            except NaiAPIError as exc:
+            except NaiAPIError:
                 # 失败不占用冷却，允许立即重试
                 self._clear_cooldown(sender_id, reservation)
-                logger.error(f"[叶子的逼] 生成失败: {exc}")
-                return event.plain_result(f"[失败] {exc}")
-            except Exception as exc:
+                raise
+            except Exception:
                 self._clear_cooldown(sender_id, reservation)
-                logger.error(f"[叶子的逼] 未预期异常: {exc}", exc_info=True)
-                return event.plain_result(f"[失败] 内部错误：{type(exc).__name__}")
+                raise
 
         try:
             path = self._save_image(data, preset_key)
-        except (OSError, ValueError, TypeError) as exc:
+        except (OSError, ValueError, TypeError):
             self._clear_cooldown(sender_id, reservation)
-            logger.error(f"[叶子的逼] 图片保存失败: {exc}", exc_info=True)
-            return event.plain_result("[失败] 图片保存失败，请检查插件数据目录。")
-        self._last_image[str(sender_id)] = str(path)
+            raise
+        self._last_image[sender_id] = str(path)
         if warning:
             logger.info(f"[叶子的逼] {label} 参数提示: {warning}")
-        # 隐写模式：载体作预览，隐藏数据的 PNG 通过原始文件发送
-        if self._steg_enabled.get(str(sender_id), False):
-            return await self._hide_into_cover(event, path, sender_id, preset_key)
-        return event.image_result(str(path))
+        return {
+            "path": path,
+            "prompt": prompt,
+            "negative": negative,
+            "variant_index": variant_index,
+            "face_enabled": face_enabled,
+        }
 
     async def _hide_into_cover(self, event, generated_path, sender_id, preset_key):
         """把生成图隐藏进载体，并把可提取 PNG 作为原始文件发送。"""

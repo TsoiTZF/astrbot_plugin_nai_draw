@@ -308,7 +308,7 @@ def test_page_files():
     check('apiPost("generate"' in js, "出图走 generate 接口")
     check('[data-theme="dark"]' in css or '[data-theme="light"]' in css, "样式支持 Dashboard 主题")
     check("绘台" in html, "页面标题为绘台")
-    check("class=\"stage\"" in html or "class='stage'" in html or 'class="stage"' in html, "成图铺满画布")
+    check("composer" in html and "workspace" in html, "左侧出图、右侧成图")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

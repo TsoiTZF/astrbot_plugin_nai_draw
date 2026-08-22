@@ -241,6 +241,7 @@ function showResult(payload) {
   els.resultImage.src = dataUrl(image);
   els.resultImage.hidden = false;
   els.resultEmpty.hidden = true;
+  document.getElementById("result-frame")?.classList.add("has-image");
   els.resultSheet.hidden = false;
   els.sheetPreset.textContent = payload.preset_label
     ? `${payload.preset_number} = ${payload.preset_label}`

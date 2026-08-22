@@ -7,37 +7,47 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <header class="mast">
-      <p class="kicker">叶子的逼</p>
-      <h1>绘台</h1>
-      <dl class="meters">
-        <div>
-          <dt>上游</dt>
-          <dd id="status-api">读取中</dd>
-        </div>
-        <div>
-          <dt>模型</dt>
-          <dd id="status-model">—</dd>
-        </div>
-        <div>
-          <dt>成图</dt>
-          <dd id="status-gallery">0</dd>
-        </div>
-        <div>
-          <dt>载体</dt>
-          <dd id="status-covers">0</dd>
-        </div>
-      </dl>
-    </header>
+    <div class="stage">
+      <figure class="canvas" id="result-frame">
+        <img id="result-image" alt="当前成图" hidden />
+        <figcaption id="result-empty">
+          <span class="empty-mark">NAI</span>
+          还没有图
+        </figcaption>
+      </figure>
 
-    <div class="spread">
-      <form id="draw-form" class="composer">
+      <div class="veil" aria-hidden="true"></div>
+
+      <header class="hud-top">
+        <p class="brand">叶子的逼</p>
+        <h1>绘台</h1>
+        <dl class="meters">
+          <div>
+            <dt>上游</dt>
+            <dd id="status-api">读取中</dd>
+          </div>
+          <div>
+            <dt>模型</dt>
+            <dd id="status-model">—</dd>
+          </div>
+          <div>
+            <dt>成图</dt>
+            <dd id="status-gallery">0</dd>
+          </div>
+          <div>
+            <dt>载体</dt>
+            <dd id="status-covers">0</dd>
+          </div>
+        </dl>
+      </header>
+
+      <form id="draw-form" class="hud-left">
         <label class="field">
           <span>画面</span>
           <textarea
             id="prompt"
             name="prompt"
-            rows="8"
+            rows="7"
             required
             placeholder="长发女孩，夜雨旗袍，侧光，看着镜头"
           ></textarea>
@@ -82,27 +92,12 @@
           <input id="stego-password" type="password" autocomplete="off" />
         </label>
 
-        <div class="submit-row">
-          <button id="draw-button" type="submit">出图</button>
-          <p class="hint" id="form-hint">中文会先转成标签，再送给 NAI 4.5。</p>
-        </div>
+        <p class="hint" id="form-hint">中文会先转成标签，再送给 NAI 4.5。</p>
+        <button id="draw-button" type="submit">出图</button>
       </form>
 
-      <section class="proof" aria-labelledby="board-title">
-        <div class="proof-bar">
-          <h2 id="board-title">成图</h2>
-          <p id="lightbox-meta">还没有图。写画面，再出图。</p>
-          <div class="proof-actions">
-            <button id="download-result" type="button" disabled>下载成图</button>
-            <button id="download-stego" type="button" hidden>下载隐写 PNG</button>
-          </div>
-        </div>
-
-        <figure class="proof-image" id="result-frame">
-          <img id="result-image" alt="当前成图" hidden />
-          <figcaption id="result-empty">等待出图</figcaption>
-        </figure>
-
+      <aside class="hud-right">
+        <p id="lightbox-meta">写画面，再出图。</p>
         <dl class="facts" id="result-sheet" hidden>
           <div>
             <dt>预设</dt>
@@ -121,60 +116,50 @@
             <dd id="sheet-face">—</dd>
           </div>
         </dl>
-
         <details class="prompt-sheet">
-          <summary>正面 / 负面提示词</summary>
+          <summary>提示词</summary>
           <p id="sheet-prompt">—</p>
           <p id="sheet-negative">—</p>
         </details>
         <p class="note" id="result-note" hidden></p>
-      </section>
-    </div>
-
-    <section class="reel" aria-labelledby="gallery-title">
-      <div class="reel-head">
-        <h2 id="gallery-title">最近成图</h2>
-        <p>点开一张放到成图区。</p>
-      </div>
-      <div class="thumbs" id="gallery"></div>
-    </section>
-
-    <section class="reel" aria-labelledby="cover-title">
-      <div class="reel-head">
-        <div>
-          <h2 id="cover-title">载体</h2>
-          <p>隐写时随机抽一张当外壳。只认原始 PNG，不要用聊天压缩图。</p>
+        <div class="actions">
+          <button id="download-result" type="button" disabled>下载成图</button>
+          <button id="download-stego" type="button" hidden>下载隐写 PNG</button>
         </div>
-        <form id="cover-form" class="inline-form">
-          <label class="file-link">
-            <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" />
-            <span>加入载体</span>
-          </label>
-          <p class="hint" id="cover-hint"></p>
-        </form>
-      </div>
-      <div class="thumbs" id="covers"></div>
-    </section>
+      </aside>
 
-    <section class="reel" aria-labelledby="extract-title">
-      <div class="reel-head">
-        <div>
+      <section class="hud-bottom" aria-labelledby="gallery-title">
+        <div class="reel">
+          <div class="reel-label">
+            <h2 id="gallery-title">最近</h2>
+            <p>点开放到画布。</p>
+          </div>
+          <div class="thumbs" id="gallery"></div>
+        </div>
+        <div class="reel">
+          <div class="reel-label">
+            <h2 id="cover-title">载体</h2>
+            <form id="cover-form">
+              <label class="file-link">
+                <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" />
+                <span>加入</span>
+              </label>
+              <p class="hint" id="cover-hint"></p>
+            </form>
+          </div>
+          <div class="thumbs" id="covers"></div>
+        </div>
+        <form id="extract-form" class="extract">
           <h2 id="extract-title">拆封</h2>
-          <p>放入机器人发出的原始隐写 PNG。</p>
-        </div>
-        <form id="extract-form" class="inline-form">
-          <label class="field compact">
-            <span>密码，没有就留空</span>
-            <input id="extract-password" type="password" autocomplete="off" />
-          </label>
+          <input id="extract-password" type="password" placeholder="密码，可留空" autocomplete="off" />
           <label class="file-link">
             <input id="extract-file" type="file" accept="image/png" />
-            <span>选择原始 PNG</span>
+            <span>原始 PNG</span>
           </label>
+          <p class="hint" id="extract-hint"></p>
         </form>
-      </div>
-      <p class="hint" id="extract-hint"></p>
-    </section>
+      </section>
+    </div>
 
     <div id="toast" class="toast" hidden role="status"></div>
     <script type="module" src="./app.js"></script>

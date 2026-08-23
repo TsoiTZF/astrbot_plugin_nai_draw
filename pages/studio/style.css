@@ -1,40 +1,40 @@
 /**
- * 绘台 (Studio) - 极夜星云黑曜石与琉璃微晶高定设计系统
- * 视觉哲学：极夜深邃黑曜石 (Void Obsidian) + 钛冷琉璃镜面 (Crystal Glass) + 纯净极光微电感 (Cyan-Indigo Beam)
+ * 绘台 (Studio) - 极夜星云黑曜石与钛冷琉璃全态设计系统
+ * 兼具极致深邃暗黑模式与明亮通透浅色模式
  */
 
 :root,
 [data-theme="dark"] {
-  /* 基础底色：极深邃的极夜黑 Obsidian，深沉纯净 */
-  --bg-deep-void: #06070a;
-  --bg-topbar: rgba(9, 11, 16, 0.82);
-  --bg-dock: rgba(11, 14, 21, 0.85);
-  --bg-crystal: rgba(18, 23, 34, 0.65);
-  --bg-crystal-hover: rgba(25, 33, 49, 0.88);
-  --bg-crystal-active: #1e273b;
-  --bg-input: rgba(10, 13, 19, 0.9);
+  /* 基础底色：极夜深邃 Obsidian */
+  --bg-main: #06070a;
+  --bg-topbar: rgba(10, 13, 19, 0.88);
+  --bg-dock: rgba(12, 16, 24, 0.88);
+  --bg-card: rgba(18, 24, 36, 0.65);
+  --bg-card-hover: rgba(26, 35, 52, 0.9);
+  --bg-card-active: #1d263b;
+  --bg-input: rgba(10, 14, 20, 0.92);
   --bg-theater: #030406;
+  --bg-subbar: rgba(0, 0, 0, 0.35);
 
-  /* 边框与极细琉璃冷光 */
+  /* 边框与微光 */
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-medium: rgba(255, 255, 255, 0.15);
   --border-focus: #38bdf8;
   --border-glow: rgba(56, 189, 248, 0.35);
   --specular-line: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 
-  /* 文本色阶 */
+  /* 文本梯度 */
   --text-pure: #ffffff;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted: #5e6c84;
+  --text-muted: #64748b;
 
-  /* 核心炫酷微光电感色（靛蓝 + 冰晶青） */
+  /* 核心炫酷冰晶青与电感光效 */
   --accent-cyan: #38bdf8;
-  --accent-indigo: #6366f1;
-  --accent-violet: #8b5cf6;
+  --accent-cyan-subtle: rgba(56, 189, 248, 0.12);
   --accent-glow: rgba(56, 189, 248, 0.3);
 
-  /* 核心主按钮渐变：极光能量流 (Cyan to Indigo Aurora) */
+  /* 核心渲染主按钮渐变 */
   --btn-render-grad: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
   --btn-render-hover: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
   --btn-render-glow: 0 4px 24px rgba(56, 189, 248, 0.35);
@@ -45,32 +45,27 @@
   --status-error: #f43f5e;
   --status-error-bg: rgba(244, 63, 94, 0.15);
 
-  /* 几何半径 */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-pill: 9999px;
-
-  /* 字体家族 */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
-
   /* 景深阴影 */
   --shadow-viewport: 0 30px 80px rgba(0, 0, 0, 0.95);
   --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.7);
   --shadow-card: 0 4px 18px rgba(0, 0, 0, 0.4);
+
+  /* 背景网格透明度 */
+  --mesh-opacity: 0.8;
+  --nebula-opacity: 0.35;
 }
 
 [data-theme="light"] {
-  --bg-deep-void: #f0f3f8;
-  --bg-topbar: rgba(255, 255, 255, 0.9);
-  --bg-dock: rgba(255, 255, 255, 0.85);
-  --bg-crystal: rgba(255, 255, 255, 0.8);
-  --bg-crystal-hover: rgba(255, 255, 255, 0.98);
-  --bg-crystal-active: #ffffff;
+  /* 浅色模式：明亮琉璃白瓷与清透微蓝，所有框体完全适配 */
+  --bg-main: #f3f5f9;
+  --bg-topbar: rgba(255, 255, 255, 0.92);
+  --bg-dock: rgba(255, 255, 255, 0.88);
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-card-hover: #ffffff;
+  --bg-card-active: #ffffff;
   --bg-input: #ffffff;
   --bg-theater: #e2e8f0;
+  --bg-subbar: rgba(241, 245, 249, 0.8);
 
   --border-subtle: rgba(0, 0, 0, 0.08);
   --border-medium: rgba(0, 0, 0, 0.14);
@@ -78,14 +73,13 @@
   --border-glow: rgba(2, 132, 199, 0.25);
   --specular-line: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
-  --text-pure: #000000;
-  --text-primary: #0f172a;
+  --text-pure: #0f172a;
+  --text-primary: #1e293b;
   --text-secondary: #475569;
-  --text-muted: #8e9cae;
+  --text-muted: #64748b;
 
   --accent-cyan: #0284c7;
-  --accent-indigo: #4338ca;
-  --accent-violet: #6d28d9;
+  --accent-cyan-subtle: rgba(2, 132, 199, 0.1);
   --accent-glow: rgba(2, 132, 199, 0.2);
 
   --btn-render-grad: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
@@ -99,10 +93,24 @@
 
   --shadow-viewport: 0 20px 48px rgba(0, 0, 0, 0.12);
   --shadow-float: 0 10px 24px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  --mesh-opacity: 0.2;
+  --nebula-opacity: 0.15;
 }
 
-/* 全局重设 */
+/* 几何与字体 */
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 9999px;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -113,7 +121,7 @@ html, body {
   height: 100%;
   width: 100%;
   font-family: var(--font-sans);
-  background-color: var(--bg-deep-void);
+  background-color: var(--bg-main);
   color: var(--text-primary);
   font-size: 13.5px;
   line-height: 1.5;
@@ -134,7 +142,7 @@ html, body {
   position: absolute;
   border-radius: 50%;
   filter: blur(110px);
-  opacity: 0.35;
+  opacity: var(--nebula-opacity);
   animation: nebula-float 24s infinite alternate ease-in-out;
 }
 
@@ -143,7 +151,7 @@ html, body {
   left: 20%;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
 }
 
 .beam-cyan {
@@ -151,7 +159,7 @@ html, body {
   right: 15%;
   width: 580px;
   height: 580px;
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.25) 0%, transparent 70%);
   animation-duration: 28s;
 }
 
@@ -160,24 +168,24 @@ html, body {
   left: -80px;
   width: 450px;
   height: 450px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
   animation-duration: 19s;
 }
 
 .prismatic-mesh {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(128, 128, 128, 0.08) 1px, transparent 1px);
   background-size: 36px 36px;
-  opacity: 0.8;
+  opacity: var(--mesh-opacity);
 }
 
 @keyframes nebula-float {
   0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(35px, 25px) scale(1.1); }
+  100% { transform: translate(35px, 25px) scale(1.12); }
 }
 
-/* 顶层容器 */
+/* 顶层舞台容器 */
 .app-stage {
   display: flex;
   flex-direction: column;
@@ -199,7 +207,7 @@ html, body {
   align-items: center;
   padding: 0 24px;
   flex-shrink: 0;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .topbar-brand-zone {
@@ -243,7 +251,7 @@ html, body {
   font-size: 9.5px;
   font-family: var(--font-mono);
   color: var(--accent-cyan);
-  background: rgba(56, 189, 248, 0.1);
+  background: var(--accent-cyan-subtle);
   border: 1px solid rgba(56, 189, 248, 0.3);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
@@ -320,23 +328,23 @@ html, body {
 }
 
 .crystal-tab.active {
-  background: var(--bg-crystal-active);
+  background: var(--bg-card-active);
   color: var(--text-pure);
   border: 1px solid var(--border-medium);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), var(--specular-line);
+  box-shadow: var(--shadow-card), var(--specular-line);
 }
 
 .tab-num-bubble {
   font-size: 10px;
   font-family: var(--font-mono);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-subtle);
   color: var(--text-muted);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
 }
 
 .crystal-tab.active .tab-num-bubble {
-  background: rgba(56, 189, 248, 0.18);
+  background: var(--accent-cyan-subtle);
   color: var(--accent-cyan);
 }
 
@@ -349,7 +357,7 @@ html, body {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   display: flex;
@@ -403,9 +411,9 @@ html, body {
   gap: 16px;
 }
 
-/* 琉璃微晶卡片 */
+/* 琉璃微晶卡片（支持全态深浅色无缝自适应） */
 .crystal-card {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--specular-line), var(--shadow-card);
   border-radius: var(--radius-md);
@@ -413,7 +421,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 .card-title-bar {
@@ -482,14 +490,14 @@ html, body {
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
   transition: border-color 0.2s, box-shadow 0.2s;
   overflow: hidden;
 }
 
 .prompt-input-wrapper:focus-within {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px var(--border-glow), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 2px var(--border-glow);
 }
 
 textarea#prompt {
@@ -511,8 +519,8 @@ textarea#prompt {
   gap: 6px;
   overflow-x: auto;
   padding: 6px 10px 8px;
-  background: rgba(0, 0, 0, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--bg-subbar);
+  border-top: 1px solid var(--border-subtle);
   scrollbar-width: none;
 }
 .quick-tags-scroller::-webkit-scrollbar {
@@ -520,7 +528,7 @@ textarea#prompt {
 }
 
 .tag-glint-chip {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   padding: 2px 9px;
@@ -532,7 +540,7 @@ textarea#prompt {
 }
 
 .tag-glint-chip:hover {
-  background: rgba(56, 189, 248, 0.12);
+  background: var(--accent-cyan-subtle);
   border-color: var(--accent-cyan);
   color: var(--text-pure);
   transform: translateY(-1px);
@@ -561,13 +569,13 @@ textarea#prompt {
 }
 
 .preset-chip-pro:hover {
-  background: var(--bg-crystal-hover);
+  background: var(--bg-card-hover);
   border-color: var(--border-medium);
   transform: translateY(-1px);
 }
 
 .preset-chip-pro.active {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12) 0%, rgba(18, 23, 34, 0.95) 100%);
+  background: var(--bg-card-active);
   border-color: var(--accent-cyan);
   box-shadow: 0 0 12px var(--border-glow), var(--specular-line);
 }
@@ -614,12 +622,12 @@ textarea#prompt {
 }
 
 .size-chip-pro:hover {
-  background: var(--bg-crystal-hover);
+  background: var(--bg-card-hover);
   border-color: var(--border-medium);
 }
 
 .size-chip-pro.active {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12) 0%, rgba(18, 23, 34, 0.95) 100%);
+  background: var(--bg-card-active);
   border-color: var(--accent-cyan);
   box-shadow: 0 0 10px var(--border-glow), var(--specular-line);
 }
@@ -667,7 +675,7 @@ textarea#prompt {
 }
 
 .artist-glow-pill {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   padding: 2px 8px;
@@ -678,7 +686,7 @@ textarea#prompt {
 }
 
 .artist-glow-pill:hover {
-  background: rgba(56, 189, 248, 0.12);
+  background: var(--accent-cyan-subtle);
   border-color: var(--accent-cyan);
   color: var(--text-pure);
 }
@@ -702,7 +710,7 @@ textarea#prompt {
 }
 
 .switch-row-item:hover {
-  background: var(--bg-crystal-hover);
+  background: var(--bg-card-hover);
 }
 
 .switch-info-col {
@@ -737,7 +745,7 @@ textarea#prompt {
   display: block;
   width: 34px;
   height: 18px;
-  background: var(--bg-deep-void);
+  background: var(--bg-main);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-pill);
   position: relative;
@@ -913,15 +921,15 @@ textarea#prompt {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: var(--accent-cyan-subtle);
+  border: 1px solid var(--border-glow);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 14px;
   color: var(--accent-cyan);
   font-size: 20px;
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 20px var(--accent-glow);
 }
 
 .empty-text {
@@ -930,7 +938,7 @@ textarea#prompt {
   letter-spacing: 0.04em;
 }
 
-/* 成图画框（纯粹高保真画作，居中完整呈现） */
+/* 成图画框（居中完整呈现） */
 .masterpiece-stage {
   position: relative;
   width: 100%;
@@ -946,7 +954,7 @@ textarea#prompt {
   max-height: 100%;
   object-fit: contain;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-viewport), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-viewport), 0 0 0 1px var(--border-subtle);
   transition: opacity 0.3s ease;
 }
 
@@ -957,7 +965,7 @@ textarea#prompt {
   left: 50%;
   transform: translateX(-50%);
   width: min(90%, 820px);
-  background: rgba(14, 18, 27, 0.88);
+  background: var(--bg-dock);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border-medium);
@@ -1017,7 +1025,7 @@ textarea#prompt {
 }
 
 .island-btn {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   color: var(--text-pure);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--specular-line);
@@ -1033,7 +1041,7 @@ textarea#prompt {
 }
 
 .island-btn:hover:not(:disabled) {
-  background: var(--bg-crystal-hover);
+  background: var(--bg-card-hover);
   border-color: var(--border-medium);
 }
 
@@ -1045,10 +1053,11 @@ textarea#prompt {
 .island-btn--prime {
   background: var(--btn-render-grad);
   border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 .island-btn--stego {
-  background: rgba(56, 189, 248, 0.12);
+  background: var(--accent-cyan-subtle);
   border-color: rgba(56, 189, 248, 0.3);
   color: var(--accent-cyan);
 }
@@ -1108,7 +1117,7 @@ textarea#prompt {
 }
 
 .btn-copy-chip {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   color: var(--text-secondary);
@@ -1136,7 +1145,7 @@ textarea#prompt {
 }
 
 .island-note-bar {
-  background: rgba(56, 189, 248, 0.08);
+  background: var(--accent-cyan-subtle);
   border-left: 3px solid var(--accent-cyan);
   padding: 6px 10px;
   font-size: 11.5px;
@@ -1174,7 +1183,7 @@ textarea#prompt {
 }
 
 .btn-crystal-tool {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   color: var(--text-pure);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--specular-line);
@@ -1190,13 +1199,14 @@ textarea#prompt {
 }
 
 .btn-crystal-tool:hover {
-  background: var(--bg-crystal-hover);
+  background: var(--bg-card-hover);
   border-color: var(--border-medium);
 }
 
 .btn-crystal-tool--accent {
   background: var(--btn-render-grad);
   border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 /* 画廊与载体瀑布流网格 */
@@ -1208,7 +1218,7 @@ textarea#prompt {
 }
 
 .art-card-item {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--specular-line), var(--shadow-card);
   border-radius: var(--radius-md);
@@ -1222,7 +1232,7 @@ textarea#prompt {
 .art-card-item:hover {
   transform: translateY(-4px);
   border-color: var(--border-focus);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35), 0 0 20px var(--accent-glow);
 }
 
 .art-card-item__thumb {
@@ -1238,7 +1248,7 @@ textarea#prompt {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(11, 14, 21, 0.85);
+  background: var(--bg-subbar);
 }
 
 .art-card-item__preset {
@@ -1255,7 +1265,7 @@ textarea#prompt {
 
 /* 载体卡片 */
 .cover-card-box {
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--specular-line);
   border-radius: var(--radius-md);
@@ -1276,7 +1286,7 @@ textarea#prompt {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(11, 14, 21, 0.9);
+  background: var(--bg-subbar);
 }
 
 .cover-card-box__name {
@@ -1307,7 +1317,7 @@ textarea#prompt {
   border-radius: var(--radius-lg);
   padding: 40px 24px;
   text-align: center;
-  background: var(--bg-crystal);
+  background: var(--bg-card);
   margin-bottom: 24px;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -1316,7 +1326,7 @@ textarea#prompt {
 .drop-crystal-zone:hover,
 .drop-crystal-zone.dragover {
   border-color: var(--border-focus);
-  background: rgba(56, 189, 248, 0.04);
+  background: var(--accent-cyan-subtle);
 }
 
 .drop-icon-sphere {
@@ -1405,13 +1415,13 @@ textarea#prompt {
   position: fixed;
   bottom: 28px;
   right: 28px;
-  background: rgba(16, 21, 31, 0.94);
+  background: var(--bg-dock);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   color: var(--text-pure);
   border: 1px solid var(--border-medium);
   border-left: 3px solid var(--accent-cyan);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
   border-radius: var(--radius-md);
   padding: 14px 22px;
   font-size: 13.5px;

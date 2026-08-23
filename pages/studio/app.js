@@ -1,6 +1,9 @@
 /**
  * 绘台 (Studio) - 硬件工坊高定驱动系统 (Machined Console)
- * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
+ * 增加：
+ * 1. 预设微型艺术色板渲染
+ * 2. 尺寸微缩矢量线框渲染
+ * 3. 点击成图全屏灯箱无损放大预览 (Fullscreen Lightbox)
  */
 
 // 示例灵感画面库
@@ -94,7 +97,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-metal-pill"),
+  artistChips: document.querySelectorAll(".artist-gold-pill"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -128,8 +131,14 @@ const els = {
   btnCopyPrompt: document.getElementById("btn-copy-prompt"),
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
+  // 全屏灯箱 Modal
+  lightboxModal: document.getElementById("lightbox-modal"),
+  lightboxBackdrop: document.getElementById("lightbox-backdrop"),
+  lightboxClose: document.getElementById("lightbox-close"),
+  lightboxImg: document.getElementById("lightbox-img"),
+
   // 导航
-  tabs: document.querySelectorAll(".segment-key"),
+  tabs: document.querySelectorAll(".segment-pill-btn"),
   tabPanels: document.querySelectorAll(".viewport-pane"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
@@ -216,19 +225,26 @@ function setupTabs() {
   });
 }
 
-// 渲染画风预设矩阵
+// 渲染画风预设矩阵（带艺术微缩色板）
 function renderPresets(presets) {
   els.presetGrid.replaceChildren();
   for (const item of presets) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `preset-chip-pro ${item.key === state.preset ? "active" : ""}`;
+    card.className = `preset-chip-lux-card ${item.key === state.preset ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
+    // 艺术微缩色板条
+    const swatch = document.createElement("div");
+    swatch.className = `preset-art-swatch swatch-${item.key}`;
+
+    const labelRow = document.createElement("div");
+    labelRow.className = "preset-label-row";
+
     const seqSpan = document.createElement("span");
-    seqSpan.className = "preset-seq";
+    seqSpan.className = "preset-seq-tag";
     seqSpan.textContent = `#${item.number}`;
 
     const titleSpan = document.createElement("span");
@@ -236,13 +252,16 @@ function renderPresets(presets) {
     titleSpan.textContent = item.label.split("（")[0];
     card.title = item.label;
 
-    card.appendChild(seqSpan);
-    card.appendChild(titleSpan);
+    labelRow.appendChild(seqSpan);
+    labelRow.appendChild(titleSpan);
+
+    card.appendChild(swatch);
+    card.appendChild(labelRow);
 
     card.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-chip-pro").forEach((c) => {
+      els.presetGrid.querySelectorAll(".preset-chip-lux-card").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -253,16 +272,28 @@ function renderPresets(presets) {
   }
 }
 
-// 渲染画幅尺寸选择矩阵
+// 渲染画幅尺寸选择矩阵（带微缩矢量比例线框）
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `size-chip-pro ${item.key === state.size ? "active" : ""}`;
+    card.className = `size-wireframe-chip ${item.key === state.size ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
+
+    // 比例模型映射
+    let boxClass = "box-portrait";
+    if (item.key === "832x832") boxClass = "box-square";
+    else if (item.key === "1216x832") boxClass = "box-landscape";
+    else if (item.key === "1024x1024") boxClass = "box-large";
+
+    const iconWrap = document.createElement("div");
+    iconWrap.className = "ratio-wireframe-icon";
+    const box = document.createElement("div");
+    box.className = `wireframe-box ${boxClass}`;
+    iconWrap.appendChild(box);
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "size-name-text";
@@ -272,13 +303,14 @@ function renderSizes(sizes) {
     resSpan.className = "size-pixel-res";
     resSpan.textContent = item.hint;
 
+    card.appendChild(iconWrap);
     card.appendChild(nameSpan);
     card.appendChild(resSpan);
 
     card.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-chip-pro").forEach((c) => {
+      els.sizeRow.querySelectorAll(".size-wireframe-chip").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -486,7 +518,7 @@ async function bootstrap() {
     state.sizes = data.sizes || [];
 
     els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
-    els.statusDot.className = `status-led-indicator ${state.configured ? "ready" : "error"}`;
+    els.statusDot.className = `beacon-gold-led ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -503,7 +535,7 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "OFFLINE";
-    els.statusDot.className = "status-led-indicator error";
+    els.statusDot.className = "beacon-gold-led error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -524,14 +556,14 @@ function setupEventListeners() {
       const idx = Math.floor(Math.random() * SAMPLES.length);
       els.prompt.value = SAMPLES[idx];
       els.prompt.focus();
-      showToast("已注入精选灵感画面！");
+      showToast("已注入精美灵感画面！");
     });
   }
 
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".metal-tag-chip");
+      const tag = e.target.closest(".inspire-gold-chip");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;
@@ -604,6 +636,24 @@ function setupEventListeners() {
       showToast("复制失败，请手动选取", "error");
     }
   });
+
+  // 点击成图全屏灯箱放大预览
+  if (els.resultImage && els.lightboxModal) {
+    els.resultImage.addEventListener("click", () => {
+      if (els.resultImage.src && !els.resultImage.hidden) {
+        els.lightboxImg.src = els.resultImage.src;
+        els.lightboxModal.hidden = false;
+      }
+    });
+
+    const closeLightbox = () => {
+      els.lightboxModal.hidden = true;
+      els.lightboxImg.src = "";
+    };
+
+    els.lightboxClose.addEventListener("click", closeLightbox);
+    els.lightboxBackdrop.addEventListener("click", closeLightbox);
+  }
 
   // 提交出图表单
   els.form.addEventListener("submit", async (e) => {

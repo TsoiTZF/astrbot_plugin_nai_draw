@@ -93,7 +93,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-pill"),
+  artistChips: document.querySelectorAll(".artist-chip-pill"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -135,8 +135,8 @@ const els = {
   lightboxImg: document.getElementById("lightbox-img"),
 
   // 顶栏模式导航
-  tabs: document.querySelectorAll(".tab-btn"),
-  tabPanels: document.querySelectorAll(".studio-mode-pane"),
+  tabs: document.querySelectorAll(".nav-menu-btn"),
+  tabPanels: document.querySelectorAll(".view-mode-panel"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -175,7 +175,7 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `royal-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `studio-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
@@ -386,7 +386,7 @@ function renderGallery(items) {
             negative: "—",
           });
           // 平滑滚动回顶部巨幕
-          const scroller = document.querySelector(".panel-stage");
+          const scroller = document.querySelector(".workbench-main-stage");
           if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
           showToast(`已在画布中载入 ${item.name}`);
         }
@@ -516,7 +516,7 @@ async function bootstrap() {
     state.sizes = data.sizes || [];
 
     els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
-    els.statusDot.className = `status-dot ${state.configured ? "ready" : "error"}`;
+    els.statusDot.className = `status-indicator-dot ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -533,7 +533,7 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "OFFLINE";
-    els.statusDot.className = "status-dot error";
+    els.statusDot.className = "status-indicator-dot error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -561,7 +561,7 @@ function setupEventListeners() {
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".tag-pill");
+      const tag = e.target.closest(".inspire-tag-pill");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;
@@ -832,8 +832,18 @@ function setupEventListeners() {
   });
 }
 
-// 启动
-document.addEventListener("DOMContentLoaded", () => {
-  setupEventListeners();
+function startStudio() {
+  try {
+    setupEventListeners();
+  } catch (err) {
+    showToast(`交互绑定失败: ${errorMessage(err)}`, "error");
+  }
   bootstrap();
-});
+}
+
+// 经典脚本放在 </body> 前时 DOM 已解析；模块脚本则可能错过 DOMContentLoaded。
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startStudio);
+} else {
+  startStudio();
+}

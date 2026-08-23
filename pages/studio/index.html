@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>绘台</title>
-    <!-- AstrBot 官方 Bridge SDK 同步引用 -->
+    <!-- AstrBot 会改写该地址并注入 token；Dashboard iframe 无 allow-same-origin，不能用 type=module -->
     <script src="/api/plugin/page/bridge-sdk.js"></script>
     <link rel="stylesheet" href="./style.css" />
   </head>
@@ -17,7 +17,7 @@
 
     <div class="app-viewport-root">
       <!-- ================= 顶层高定导航栏 ================= -->
-      <header class="studio-topbar">
+      <header class="studio-navbar">
         <div class="navbar-brand-col">
           <div class="brand-badge-box">
             <span class="brand-logo-spark">✦</span>
@@ -483,6 +483,6 @@
     <!-- 全局 Toast 悬浮通知 -->
     <div id="toast" class="studio-toast-capsule" hidden role="status" aria-live="polite"></div>
 
-    <script type="module" src="./app.js"></script>
+    <script src="./app.js"></script>
   </body>
 </html>

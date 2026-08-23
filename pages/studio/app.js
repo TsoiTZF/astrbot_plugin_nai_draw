@@ -1,16 +1,21 @@
+/**
+ * 暗房绘台 WebUI 核心驱动脚本
+ * 基于原生现代 ESM，零外部依赖，适配 AstrBot 插件 Web 沙箱
+ */
+
 function createFallbackBridge() {
   const message = "请在 AstrBot 插件详情页打开绘台";
   const fail = async () => {
     throw new Error(message);
   };
   return {
-    ready: async () => ({ isDark: false, pageTitle: "绘台" }),
+    ready: async () => ({ isDark: true, pageTitle: "暗房绘台" }),
     apiGet: async (endpoint) => {
       if (endpoint !== "bootstrap") {
         throw new Error(message);
       }
       return {
-        configured: false,
+        configured: true,
         model: "nai-diffusion-4-5-full",
         default_preset: "laowuyang",
         default_size: "832x1216",
@@ -45,22 +50,36 @@ function createFallbackBridge() {
 
 const bridge = window.AstrBotPluginPage || createFallbackBridge();
 
+// 全局响应式状态
 const state = {
   configured: false,
   preset: "laowuyang",
   size: "832x1216",
   currentName: "",
   stegoName: "",
+  presets: [],
+  sizes: [],
+  gallery: [],
+  covers: [],
   thumbs: new Map(),
+  isBusy: false,
 };
 
+// DOM 元素引用表
 const els = {
-  api: document.getElementById("status-api"),
-  model: document.getElementById("status-model"),
+  // 状态与仪表盘
+  apiStatus: document.getElementById("status-api"),
+  statusDot: document.getElementById("status-dot"),
+  modelStatus: document.getElementById("status-model"),
   galleryCount: document.getElementById("status-gallery"),
   coverCount: document.getElementById("status-covers"),
+  tabGalleryCount: document.getElementById("tab-gallery-count"),
+  tabCoverCount: document.getElementById("tab-cover-count"),
+  
+  // 表单与控制项
   form: document.getElementById("draw-form"),
   prompt: document.getElementById("prompt"),
+  btnClearPrompt: document.getElementById("btn-clear-prompt"),
   artists: document.getElementById("artists"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
@@ -68,13 +87,21 @@ const els = {
   stegoPasswordField: document.getElementById("stego-password-field"),
   stegoPassword: document.getElementById("stego-password"),
   drawButton: document.getElementById("draw-button"),
+  drawSpinner: document.getElementById("draw-spinner"),
+  drawBtnText: document.getElementById("draw-btn-text"),
   formHint: document.getElementById("form-hint"),
   presetGrid: document.getElementById("preset-grid"),
   sizeRow: document.getElementById("size-row"),
-  lightboxMeta: document.getElementById("lightbox-meta"),
+  presetSummary: document.getElementById("preset-summary"),
+  sizeSummary: document.getElementById("size-summary"),
+
+  // 画布与结果区
+  canvasViewport: document.getElementById("canvas-viewport"),
   resultImage: document.getElementById("result-image"),
   resultEmpty: document.getElementById("result-empty"),
-  resultSheet: document.getElementById("result-sheet"),
+  resultDock: document.getElementById("result-dock"),
+  downloadResult: document.getElementById("download-result"),
+  downloadStego: document.getElementById("download-stego"),
   sheetPreset: document.getElementById("sheet-preset"),
   sheetSize: document.getElementById("sheet-size"),
   sheetNsfw: document.getElementById("sheet-nsfw"),
@@ -82,18 +109,35 @@ const els = {
   sheetPrompt: document.getElementById("sheet-prompt"),
   sheetNegative: document.getElementById("sheet-negative"),
   resultNote: document.getElementById("result-note"),
-  downloadResult: document.getElementById("download-result"),
-  downloadStego: document.getElementById("download-stego"),
+  btnCopyPrompt: document.getElementById("btn-copy-prompt"),
+  btnCopyNegative: document.getElementById("btn-copy-negative"),
+
+  // 选项卡与导航
+  tabs: document.querySelectorAll(".stage-tab"),
+  tabPanels: document.querySelectorAll(".tab-panel"),
+  btnToggleTheme: document.getElementById("btn-toggle-theme"),
+
+  // 画廊与载体管理
   gallery: document.getElementById("gallery"),
+  btnRefreshGallery: document.getElementById("btn-refresh-gallery"),
   covers: document.getElementById("covers"),
   coverFile: document.getElementById("cover-file"),
-  coverHint: document.getElementById("cover-hint"),
+  coverDropZone: document.getElementById("cover-drop-zone"),
+
+  // 隐写拆封工坊
+  extractDropZone: document.getElementById("extract-drop-zone"),
   extractFile: document.getElementById("extract-file"),
   extractPassword: document.getElementById("extract-password"),
   extractHint: document.getElementById("extract-hint"),
+  extractResultPanel: document.getElementById("extract-result-panel"),
+  extractPreviewImg: document.getElementById("extract-preview-img"),
+  btnDownloadExtracted: document.getElementById("btn-download-extracted"),
+
+  // Toast 提示
   toast: document.getElementById("toast"),
 };
 
+// 辅助方法：解包后端数据
 function unwrap(payload) {
   if (payload && typeof payload === "object" && payload.status === "ok" && "data" in payload) {
     return payload.data;
@@ -101,35 +145,35 @@ function unwrap(payload) {
   return payload;
 }
 
+// 辅助方法：统一错误消息
 function errorMessage(error) {
   if (!error) return "请求失败";
   if (typeof error === "string") return error;
   return error.message || "请求失败";
 }
 
+// 全局 Toast 提示展示
 function showToast(message, kind = "info") {
+  if (!els.toast) return;
   els.toast.hidden = false;
   els.toast.className = `toast ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     els.toast.hidden = true;
-  }, 4200);
+  }, 4500);
 }
 
+// 设定出图状态
 function setBusy(busy) {
-  document.body.classList.toggle("busy", busy);
+  state.isBusy = busy;
   els.drawButton.disabled = busy;
+  els.drawSpinner.hidden = !busy;
+  els.drawBtnText.textContent = busy ? "正在绘制生成中..." : "开始出图";
 }
 
 function dataUrl(image) {
   return `data:${image.mime || "image/png"};base64,${image.data}`;
-}
-
-function rememberThumb(item, image) {
-  if (item?.name && image?.data) {
-    state.thumbs.set(item.name, dataUrl(image));
-  }
 }
 
 async function apiGet(endpoint, params) {
@@ -140,283 +184,559 @@ async function apiPost(endpoint, body) {
   return unwrap(await bridge.apiPost(endpoint, body));
 }
 
-function renderChoices(container, items, selected, onPick, labelKey = "label") {
-  const legend = container.querySelector("legend");
-  container.replaceChildren(legend);
-  for (const item of items) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "choice";
-    button.dataset.key = item.key;
-    button.setAttribute("aria-pressed", String(item.key === selected));
-    button.innerHTML = `<strong>${item[labelKey]}</strong><small>${item.hint || item.key}</small>`;
-    button.addEventListener("click", () => onPick(item.key));
-    container.append(button);
-  }
-}
-
-function renderPresets(presets, selected) {
-  renderChoices(
-    els.presetGrid,
-    presets.map((item) => ({
-      key: item.key,
-      label: `${item.number} ${item.label}`,
-      hint: item.faces ? `${item.faces} 种脸型` : "无预设",
-    })),
-    selected,
-    (key) => {
-      state.preset = key;
-      renderPresets(presets, key);
-    },
-  );
-}
-
-function renderSizes(sizes, selected) {
-  renderChoices(els.sizeRow, sizes, selected, (key) => {
-    state.size = key;
-    renderSizes(sizes, key);
+// 选项卡切换控制
+function setupTabs() {
+  els.tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const targetTab = tab.dataset.tab;
+      els.tabs.forEach((t) => {
+        t.classList.toggle("active", t === tab);
+        t.setAttribute("aria-selected", t === tab ? "true" : "false");
+      });
+      els.tabPanels.forEach((p) => {
+        const isActive = p.id === targetTab;
+        p.classList.toggle("active", isActive);
+        p.hidden = !isActive;
+      });
+    });
   });
 }
 
-function renderThumbList(container, items, emptyText, onOpen, onDelete) {
-  container.replaceChildren();
-  if (!items.length) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = emptyText;
-    container.append(empty);
+// 渲染预设选择网格
+function renderPresets(presets) {
+  els.presetGrid.replaceChildren();
+  for (const item of presets) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `preset-chip ${item.key === state.preset ? "active" : ""}`;
+    chip.dataset.key = item.key;
+    chip.setAttribute("role", "radio");
+    chip.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
+
+    const numSpan = document.createElement("span");
+    numSpan.className = "preset-chip__num";
+    numSpan.textContent = `#${item.number}`;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "preset-chip__name";
+    nameSpan.textContent = item.label.split("（")[0];
+    chip.title = item.label;
+
+    chip.appendChild(numSpan);
+    chip.appendChild(nameSpan);
+
+    chip.addEventListener("click", () => {
+      state.preset = item.key;
+      els.presetSummary.textContent = item.label;
+      els.presetGrid.querySelectorAll(".preset-chip").forEach((c) => {
+        const isMatch = c.dataset.key === item.key;
+        c.classList.toggle("active", isMatch);
+        c.setAttribute("aria-checked", isMatch ? "true" : "false");
+      });
+    });
+
+    els.presetGrid.appendChild(chip);
+  }
+}
+
+// 渲染画幅尺寸选择器
+function renderSizes(sizes) {
+  els.sizeRow.replaceChildren();
+  for (const item of sizes) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `size-chip ${item.key === state.size ? "active" : ""}`;
+    chip.dataset.key = item.key;
+    chip.setAttribute("role", "radio");
+    chip.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "size-chip__label";
+    labelSpan.textContent = item.label;
+
+    const resSpan = document.createElement("span");
+    resSpan.className = "size-chip__res";
+    resSpan.textContent = item.hint;
+
+    chip.appendChild(labelSpan);
+    chip.appendChild(resSpan);
+
+    chip.addEventListener("click", () => {
+      state.size = item.key;
+      els.sizeSummary.textContent = `${item.label} (${item.hint})`;
+      els.sizeRow.querySelectorAll(".size-chip").forEach((c) => {
+        const isMatch = c.dataset.key === item.key;
+        c.classList.toggle("active", isMatch);
+        c.setAttribute("aria-checked", isMatch ? "true" : "false");
+      });
+    });
+
+    els.sizeRow.appendChild(chip);
+  }
+}
+
+// 渲染画廊缩略图列表
+function renderGallery(items) {
+  state.gallery = items || [];
+  const count = state.gallery.length;
+  els.galleryCount.textContent = count;
+  els.tabGalleryCount.textContent = count;
+
+  els.gallery.replaceChildren();
+  if (count === 0) {
+    const emptyNotice = document.createElement("p");
+    emptyNotice.className = "drop-hint";
+    emptyNotice.textContent = "暂无历史生成记录。在左侧描述画面后点击出图即可保存至画廊。";
+    els.gallery.appendChild(emptyNotice);
     return;
   }
-  for (const item of items) {
-    const card = document.createElement("article");
-    card.className = "thumb";
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "thumb-open";
+
+  for (const item of state.gallery) {
+    const card = document.createElement("div");
+    card.className = "gallery-card";
+
     const img = document.createElement("img");
+    img.className = "gallery-card__thumb";
     img.alt = item.name;
-    const cached = state.thumbs.get(item.name);
-    if (cached) {
-      img.src = cached;
+    img.loading = "lazy";
+
+    // 尝试拉取缩略图
+    if (state.thumbs.has(item.name)) {
+      img.src = state.thumbs.get(item.name);
     } else {
-      img.hidden = true;
+      apiGet("preview", { name: item.name })
+        .then((res) => {
+          if (res?.image) {
+            const url = dataUrl(res.image);
+            state.thumbs.set(item.name, url);
+            img.src = url;
+          }
+        })
+        .catch(() => {});
     }
-    const caption = document.createElement("span");
-    caption.textContent = item.preset ? `${item.preset} · ${item.name}` : item.name;
-    open.append(img, caption);
-    open.addEventListener("click", () => onOpen(item));
-    card.append(open);
-    if (onDelete) {
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "ghost thumb-delete";
-      remove.textContent = "删除";
-      remove.addEventListener("click", () => onDelete(item));
-      card.append(remove);
-    }
-    container.append(card);
-    if (!cached) {
-      loadThumb(item, img);
-    }
+
+    const info = document.createElement("div");
+    info.className = "gallery-card__info";
+
+    const presetName = document.createElement("span");
+    presetName.className = "gallery-card__preset";
+    presetName.textContent = item.preset || "成图";
+
+    const dateSpan = document.createElement("span");
+    dateSpan.className = "gallery-card__date";
+    dateSpan.textContent = new Date(item.mtime * 1000).toLocaleTimeString();
+
+    info.appendChild(presetName);
+    info.appendChild(dateSpan);
+    card.appendChild(img);
+    card.appendChild(info);
+
+    // 点击历史卡片：回放画布
+    card.addEventListener("click", async () => {
+      try {
+        const res = await apiGet("preview", { name: item.name });
+        if (res?.image) {
+          state.currentName = item.name;
+          state.stegoName = "";
+          displayResultOnCanvas(res.image, {
+            preset_label: item.preset || "历史作品",
+            size: "自适应",
+            nsfw: false,
+            face_variation: true,
+            prompt: "（历史作品提示词已归档）",
+            negative: "—",
+          });
+          // 切换到画布中心 Tab
+          els.tabs[0].click();
+          showToast(`已在画布中回放作品 ${item.name}`);
+        }
+      } catch (err) {
+        showToast(`加载历史作品失败: ${errorMessage(err)}`, "error");
+      }
+    });
+
+    els.gallery.appendChild(card);
   }
 }
 
-async function loadThumb(item, img) {
-  try {
-    const result = await apiGet("preview", { name: item.name });
-    if (!result?.image) return;
-    rememberThumb(item, result.image);
-    img.src = dataUrl(result.image);
-    img.hidden = false;
-  } catch (error) {
-    img.hidden = true;
+// 渲染载体图库列表
+function renderCovers(items) {
+  state.covers = items || [];
+  const count = state.covers.length;
+  els.coverCount.textContent = count;
+  els.tabCoverCount.textContent = count;
+
+  els.covers.replaceChildren();
+  if (count === 0) {
+    const emptyNotice = document.createElement("p");
+    emptyNotice.className = "drop-hint";
+    emptyNotice.textContent = "载体库暂无图片。拖拽图片到上方上传区，或点击上传按钮添加。";
+    els.covers.appendChild(emptyNotice);
+    return;
+  }
+
+  for (const item of state.covers) {
+    const card = document.createElement("div");
+    card.className = "cover-card";
+
+    const img = document.createElement("img");
+    img.className = "cover-card__thumb";
+    img.alt = item.name;
+    img.loading = "lazy";
+
+    if (state.thumbs.has(item.name)) {
+      img.src = state.thumbs.get(item.name);
+    } else {
+      apiGet("preview", { name: item.name })
+        .then((res) => {
+          if (res?.image) {
+            const url = dataUrl(res.image);
+            state.thumbs.set(item.name, url);
+            img.src = url;
+          }
+        })
+        .catch(() => {});
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "cover-card__footer";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "cover-card__name";
+    nameSpan.textContent = item.name;
+    nameSpan.title = item.name;
+
+    const btnDel = document.createElement("button");
+    btnDel.type = "button";
+    btnDel.className = "btn-delete-cover";
+    btnDel.textContent = "删除";
+    btnDel.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm(`确定要从载体图库中删除 ${item.name} 吗？`)) return;
+      try {
+        const res = await apiPost("covers/delete", { name: item.name });
+        renderCovers(res.covers);
+        showToast("已删除载体图片");
+      } catch (err) {
+        showToast(`删除失败: ${errorMessage(err)}`, "error");
+      }
+    });
+
+    footer.appendChild(nameSpan);
+    footer.appendChild(btnDel);
+    card.appendChild(img);
+    card.appendChild(footer);
+
+    els.covers.appendChild(card);
   }
 }
 
-function showResult(payload) {
-  const image = payload.image;
-  if (!image) return;
-  state.currentName = payload.name || image.name;
-  state.stegoName = payload.stego?.ok ? payload.stego.name : "";
-  els.resultImage.src = dataUrl(image);
+// 在主画布区展示生成结果
+function displayResultOnCanvas(imageObj, meta) {
+  els.resultImage.src = dataUrl(imageObj);
   els.resultImage.hidden = false;
   els.resultEmpty.hidden = true;
-  document.getElementById("result-frame")?.classList.add("has-image");
-  els.resultSheet.hidden = false;
-  els.sheetPreset.textContent = payload.preset_label
-    ? `${payload.preset_number} = ${payload.preset_label}`
-    : payload.name || "样张";
-  els.sheetSize.textContent = payload.size || "—";
-  els.sheetNsfw.textContent = payload.nsfw ? "开启" : "关闭";
-  els.sheetFace.textContent = payload.face_variation ? "开启" : "关闭";
-  els.sheetPrompt.textContent = payload.prompt || "—";
-  els.sheetNegative.textContent = payload.negative || "—";
-  els.lightboxMeta.textContent = state.currentName;
-  els.downloadResult.disabled = !state.currentName;
-  els.downloadStego.hidden = !state.stegoName;
-  if (payload.note) {
+  els.resultDock.hidden = false;
+
+  els.sheetPreset.textContent = meta.preset_label || meta.preset || "—";
+  els.sheetSize.textContent = meta.size || "—";
+  els.sheetNsfw.textContent = meta.nsfw ? "开启" : "关闭";
+  els.sheetFace.textContent = meta.face_variation ? "启用" : "禁用";
+  els.sheetPrompt.textContent = meta.prompt || "—";
+  els.sheetNegative.textContent = meta.negative || "—";
+
+  if (meta.note) {
+    els.resultNote.textContent = meta.note;
     els.resultNote.hidden = false;
-    els.resultNote.textContent = payload.note;
-  } else if (payload.stego && payload.stego.ok === false) {
-    els.resultNote.hidden = false;
-    els.resultNote.textContent = payload.stego.message;
   } else {
     els.resultNote.hidden = true;
   }
-  rememberThumb({ name: state.currentName }, image);
+
+  els.downloadResult.disabled = !state.currentName;
+  if (state.stegoName) {
+    els.downloadStego.hidden = false;
+  } else {
+    els.downloadStego.hidden = true;
+  }
 }
 
-function applyBootstrap(data) {
-  state.configured = Boolean(data.configured);
-  state.preset = data.default_preset || "laowuyang";
-  state.size = data.default_size || "832x1216";
-  els.api.textContent = data.configured ? "已接通" : "未配置";
-  els.model.textContent = data.model || "—";
-  els.nsfw.checked = Boolean(data.allow_nsfw);
-  els.face.checked = data.enable_face_variation !== false;
-  els.formHint.textContent = data.configured
-    ? "中文会先转成标签，再送给 NAI 4.5。"
-    : "先在管理面板填写 API 地址和密钥，绘台才能出图。";
-  renderPresets(data.presets || [], state.preset);
-  renderSizes(data.sizes || [], state.size);
-  renderGallery(data.gallery || []);
-  renderCovers(data.covers || []);
-}
-
-function renderGallery(items) {
-  els.galleryCount.textContent = String(items.length);
-  renderThumbList(els.gallery, items, "还没有成图。", async (item) => {
-    try {
-      const result = await apiGet("preview", { name: item.name });
-      showResult({
-        name: item.name,
-        preset: item.preset,
-        preset_label: item.preset,
-        size: "",
-        image: result.image,
-      });
-    } catch (error) {
-      showToast(errorMessage(error), "error");
+// 初始化启动
+async function bootstrap() {
+  try {
+    const readyState = await bridge.ready();
+    if (readyState && readyState.isDark !== undefined) {
+      document.documentElement.setAttribute("data-theme", readyState.isDark ? "dark" : "light");
     }
+
+    const data = await apiGet("bootstrap");
+    state.configured = Boolean(data.configured);
+    state.preset = data.default_preset || "laowuyang";
+    state.size = data.default_size || "832x1216";
+    state.presets = data.presets || [];
+    state.sizes = data.sizes || [];
+
+    // 状态与仪表盘更新
+    els.apiStatus.textContent = state.configured ? "就绪在线" : "未配置密钥";
+    els.statusDot.className = `status-indicator ${state.configured ? "ready" : "error"}`;
+    els.modelStatus.textContent = data.model || "NAI 4.5";
+    els.nsfw.checked = Boolean(data.allow_nsfw);
+    els.face.checked = Boolean(data.enable_face_variation);
+
+    renderPresets(state.presets);
+    renderSizes(state.sizes);
+    renderGallery(data.gallery);
+    renderCovers(data.covers);
+
+    const activePresetObj = state.presets.find((p) => p.key === state.preset);
+    if (activePresetObj) els.presetSummary.textContent = activePresetObj.label;
+
+    const activeSizeObj = state.sizes.find((s) => s.key === state.size);
+    if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
+  } catch (err) {
+    els.apiStatus.textContent = "连接异常";
+    els.statusDot.className = "status-indicator error";
+    showToast(`初始化失败: ${errorMessage(err)}`, "error");
+  }
+}
+
+// 事件监听与交互绑定
+function setupEventListeners() {
+  // 选项卡切换
+  setupTabs();
+
+  // 清空描述
+  els.btnClearPrompt.addEventListener("click", () => {
+    els.prompt.value = "";
+    els.prompt.focus();
+  });
+
+  // 快捷键 Ctrl + Enter 提交出图
+  els.prompt.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (!state.isBusy) {
+        els.form.requestSubmit();
+      }
+    }
+  });
+
+  // 隐写开关联动
+  els.stego.addEventListener("change", () => {
+    els.stegoPasswordField.hidden = !els.stego.checked;
+  });
+
+  // 主题切换
+  els.btnToggleTheme.addEventListener("click", () => {
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", nextTheme);
+  });
+
+  // 复制提示词
+  els.btnCopyPrompt.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(els.sheetPrompt.textContent);
+      showToast("已复制正面提示词到剪贴板");
+    } catch {
+      showToast("复制失败，请手动选取", "error");
+    }
+  });
+
+  els.btnCopyNegative.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(els.sheetNegative.textContent);
+      showToast("已复制负面提示词到剪贴板");
+    } catch {
+      showToast("复制失败，请手动选取", "error");
+    }
+  });
+
+  // 表单提交出图
+  els.form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (state.isBusy) return;
+
+    const promptVal = els.prompt.value.trim();
+    if (!promptVal) {
+      showToast("请填写画面描述后再出图", "error");
+      els.prompt.focus();
+      return;
+    }
+
+    setBusy(true);
+    els.formHint.textContent = "正在将中文转换为标签并请求 NovelAI 4.5 模型...";
+
+    try {
+      const payload = {
+        prompt: promptVal,
+        preset: state.preset,
+        size: state.size,
+        artists: els.artists.value.trim(),
+        nsfw: els.nsfw.checked,
+        face_variation: els.face.checked,
+        stego: els.stego.checked,
+        stego_password: els.stegoPassword.value.trim(),
+      };
+
+      const result = await apiPost("generate", payload);
+      state.currentName = result.name;
+      state.stegoName = result.stego?.ok ? result.stego.name : "";
+
+      if (result.image) {
+        displayResultOnCanvas(result.image, result);
+        state.thumbs.set(result.name, dataUrl(result.image));
+      }
+
+      if (result.gallery) {
+        renderGallery(result.gallery);
+      }
+
+      // 切换到画布中心
+      els.tabs[0].click();
+      showToast("绘图生成成功！");
+    } catch (err) {
+      showToast(`出图失败: ${errorMessage(err)}`, "error");
+    } finally {
+      setBusy(false);
+      els.formHint.textContent = "中文会自动通过词典与 LLM 智能转换为官方英文标签";
+    }
+  });
+
+  // 下载高清成图
+  els.downloadResult.addEventListener("click", async () => {
+    if (!state.currentName) return;
+    try {
+      if (typeof bridge.download === "function") {
+        await bridge.download("download", { name: state.currentName }, state.currentName);
+      } else {
+        const link = document.createElement("a");
+        link.href = els.resultImage.src;
+        link.download = state.currentName;
+        link.click();
+      }
+    } catch (err) {
+      showToast(`下载失败: ${errorMessage(err)}`, "error");
+    }
+  });
+
+  // 下载隐写 PNG
+  els.downloadStego.addEventListener("click", async () => {
+    if (!state.stegoName) return;
+    try {
+      if (typeof bridge.download === "function") {
+        await bridge.download("download", { name: state.stegoName }, state.stegoName);
+      } else {
+        showToast("正在下载隐写封包...");
+      }
+    } catch (err) {
+      showToast(`下载失败: ${errorMessage(err)}`, "error");
+    }
+  });
+
+  // 刷新画廊
+  els.btnRefreshGallery.addEventListener("click", async () => {
+    try {
+      const res = await apiGet("gallery");
+      renderGallery(res.gallery);
+      showToast("画廊列表已更新");
+    } catch (err) {
+      showToast(`刷新失败: ${errorMessage(err)}`, "error");
+    }
+  });
+
+  // 上传载体图片
+  async function handleCoverUpload(file) {
+    if (!file) return;
+    try {
+      showToast(`正在上传载体 ${file.name}...`);
+      const res = await bridge.upload("covers/upload", file, {});
+      const data = unwrap(res);
+      renderCovers(data.covers);
+      showToast("载体图上传成功！");
+    } catch (err) {
+      showToast(`上传载体失败: ${errorMessage(err)}`, "error");
+    }
+  }
+
+  els.coverFile.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleCoverUpload(file);
+    e.target.value = "";
+  });
+
+  // 载体拖拽上传
+  els.coverDropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    els.coverDropZone.classList.add("dragover");
+  });
+  els.coverDropZone.addEventListener("dragleave", () => {
+    els.coverDropZone.classList.remove("dragover");
+  });
+  els.coverDropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    els.coverDropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleCoverUpload(file);
+  });
+  els.coverDropZone.addEventListener("click", () => {
+    els.coverFile.click();
+  });
+
+  // 隐写拆封工坊流程
+  async function handleExtract(file) {
+    if (!file) return;
+    els.extractHint.textContent = `正在拆封解析 ${file.name}...`;
+    try {
+      const password = els.extractPassword.value.trim();
+      // 步骤1：预设密码准备
+      await apiPost("extract/prepare", { password });
+      // 步骤2：上传并提取
+      const res = await bridge.upload("extract", file, { password });
+      const data = unwrap(res);
+
+      if (data?.image) {
+        const url = dataUrl(data.image);
+        els.extractPreviewImg.src = url;
+        els.extractResultPanel.hidden = false;
+        els.extractHint.textContent = "拆封解密成功，已成功还原生成图！";
+        showToast("隐写封包拆封成功！");
+
+        els.btnDownloadExtracted.onclick = () => {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = data.name || "extracted_image.png";
+          link.click();
+        };
+      }
+    } catch (err) {
+      els.extractHint.textContent = `拆封失败: ${errorMessage(err)}`;
+      showToast(`拆封失败: ${errorMessage(err)}`, "error");
+    }
+  }
+
+  els.extractFile.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleExtract(file);
+    e.target.value = "";
+  });
+
+  els.extractDropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    els.extractDropZone.classList.add("dragover");
+  });
+  els.extractDropZone.addEventListener("dragleave", () => {
+    els.extractDropZone.classList.remove("dragover");
+  });
+  els.extractDropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    els.extractDropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleExtract(file);
   });
 }
 
-function renderCovers(items) {
-  els.coverCount.textContent = String(items.length);
-  renderThumbList(
-    els.covers,
-    items,
-    "还没有载体。隐写前先加几张图。",
-    async (item) => {
-      try {
-        const result = await apiGet("preview", { name: item.name });
-        showResult({
-          name: item.name,
-          preset_label: "载体",
-          image: result.image,
-        });
-      } catch (error) {
-        showToast(errorMessage(error), "error");
-      }
-    },
-    async (item) => {
-      try {
-        const result = await apiPost("covers/delete", { name: item.name });
-        renderCovers(result.covers || []);
-        showToast(`已移出载体：${item.name}`);
-      } catch (error) {
-        showToast(errorMessage(error), "error");
-      }
-    },
-  );
-}
-
-async function downloadNamed(name) {
-  if (!name) return;
-  await bridge.download("download", { name }, name);
-}
-
-els.stego.addEventListener("change", () => {
-  els.stegoPasswordField.hidden = !els.stego.checked;
+// 启动执行
+document.addEventListener("DOMContentLoaded", () => {
+  setupEventListeners();
+  bootstrap();
 });
-
-els.form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!els.prompt.value.trim()) {
-    showToast("请填写画面描述。", "error");
-    return;
-  }
-  setBusy(true);
-  els.lightboxMeta.textContent = "正在打样…";
-  try {
-    const result = await apiPost("generate", {
-      prompt: els.prompt.value,
-      preset: state.preset,
-      size: state.size,
-      artists: els.artists.value,
-      nsfw: els.nsfw.checked,
-      face_variation: els.face.checked,
-      stego: els.stego.checked,
-      stego_password: els.stegoPassword.value,
-    });
-    showResult(result);
-    renderGallery(result.gallery || []);
-    showToast(result.stego?.ok ? "成图已写入载体。" : "打样完成。");
-  } catch (error) {
-    showToast(errorMessage(error), "error");
-    els.lightboxMeta.textContent = "出图失败，检查描述或上游配置。";
-  } finally {
-    setBusy(false);
-  }
-});
-
-els.downloadResult.addEventListener("click", () => downloadNamed(state.currentName));
-els.downloadStego.addEventListener("click", () => downloadNamed(state.stegoName));
-
-els.coverFile.addEventListener("change", async () => {
-  const file = els.coverFile.files?.[0];
-  if (!file) return;
-  try {
-    const result = unwrap(await bridge.upload("covers/upload", file));
-    renderCovers(result.covers || []);
-    els.coverHint.textContent = `已加入 ${result.name}`;
-    showToast("载体已入柜。");
-  } catch (error) {
-    showToast(errorMessage(error), "error");
-  } finally {
-    els.coverFile.value = "";
-  }
-});
-
-els.extractFile.addEventListener("change", async () => {
-  const file = els.extractFile.files?.[0];
-  if (!file) return;
-  try {
-    await apiPost("extract/prepare", { password: els.extractPassword.value });
-    const result = unwrap(await bridge.upload("extract", file));
-    showResult({
-      name: result.image?.name,
-      preset_label: "拆封结果",
-      image: result.image,
-    });
-    els.extractHint.textContent = "已从原始 PNG 拆出生成图。";
-    showToast("拆封完成。");
-  } catch (error) {
-    showToast(errorMessage(error), "error");
-    els.extractHint.textContent = errorMessage(error);
-  } finally {
-    els.extractFile.value = "";
-  }
-});
-
-async function boot() {
-  await bridge.ready();
-  try {
-    applyBootstrap(await apiGet("bootstrap"));
-  } catch (error) {
-    els.api.textContent = "桥接失败";
-    showToast(errorMessage(error), "error");
-  }
-}
-
-boot();

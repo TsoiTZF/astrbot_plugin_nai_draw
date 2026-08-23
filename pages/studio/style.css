@@ -841,40 +841,16 @@ textarea#prompt {
 /* 初始空状态占位 */
 .empty-state-card {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  max-width: 380px;
-  z-index: 1;
-}
-
-.empty-monogram-box {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #18202c 0%, #0c1017 100%);
-  border: 1px solid var(--border-medium);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.5);
-  display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 18px;
-  color: var(--accent-ice);
-  font-size: 28px;
-}
-
-.empty-state-heading {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-pure);
-  margin-bottom: 8px;
-  letter-spacing: 0.02em;
+  z-index: 1;
 }
 
 .empty-state-caption {
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.6;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
 }
 
 /* 成图画框（纯粹高保真画作，无遮挡、无多余外框） */

@@ -446,7 +446,10 @@ function renderCovers(items) {
 function displayResultOnCanvas(imageObj, meta) {
   els.resultImage.src = dataUrl(imageObj);
   els.artworkFrame.hidden = false;
-  els.resultEmpty.hidden = true;
+  if (els.resultEmpty) {
+    els.resultEmpty.hidden = true;
+    els.resultEmpty.style.display = "none";
+  }
   els.resultDock.hidden = false;
 
   els.sheetPreset.textContent = meta.preset_label || meta.preset || "—";

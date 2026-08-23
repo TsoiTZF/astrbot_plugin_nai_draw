@@ -336,6 +336,19 @@ def test_page_files():
     check(not missing, "HTML 类名都能在 CSS 中找到")
     check(".app-viewport-root" in css and ".studio-content-body" in css, "根容器与主体区有布局样式")
     check(".view-mode-panel" in css and ".nav-menu-btn" in css, "模式面板与顶栏按钮有布局样式")
+    check(
+        ".ui-switch-toggle input:checked + .switch-rail" in css,
+        "隐写开关选中态选择器完整",
+    )
+    check(
+        ".hardware-switch, .ui-switch-toggle input:checked" not in css,
+        "开关选中态没有被类名别名截断",
+    )
+    check(
+        ".ui-switch-toggle input"  in css
+        and "inset: 0" in css.split(".ui-switch-toggle input")[1][:400],
+        "开关点击层覆盖整个滑块",
+    )
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

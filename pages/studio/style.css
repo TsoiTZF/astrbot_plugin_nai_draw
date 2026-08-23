@@ -318,11 +318,13 @@ html, body {
   height: 14px;
 }
 
-.tab-btn, .nav-menu-btn:hover {
+.tab-btn:hover,
+.nav-menu-btn:hover {
   color: var(--text-pure);
 }
 
-.tab-btn, .nav-menu-btn.active {
+.tab-btn.active,
+.nav-menu-btn.active {
   background: var(--bg-card-active);
   color: var(--text-pure);
   border-color: var(--bevel-gold);
@@ -338,7 +340,10 @@ html, body {
   border-radius: 2px;
 }
 
-.tab-btn, .nav-menu-btn.active .tab-badge, .menu-count-badge {
+.tab-btn.active .tab-badge,
+.tab-btn.active .menu-count-badge,
+.nav-menu-btn.active .tab-badge,
+.nav-menu-btn.active .menu-count-badge {
   background: var(--gold-subtle);
   color: var(--gold-bright);
 }
@@ -368,7 +373,8 @@ html, body {
   height: 15px;
 }
 
-.theme-toggle-btn, .theme-switch-btn:hover {
+.theme-toggle-btn:hover,
+.theme-switch-btn:hover {
   color: var(--gold-bright);
   border-color: var(--bevel-gold);
 }
@@ -412,10 +418,12 @@ html, body {
   scrollbar-color: var(--bevel-subtle) transparent;
 }
 
-.panel-composer, .composer-sidebar-panel::-webkit-scrollbar {
+.panel-composer::-webkit-scrollbar,
+.composer-sidebar-panel::-webkit-scrollbar {
   width: 4px;
 }
-.panel-composer, .composer-sidebar-panel::-webkit-scrollbar-thumb {
+.panel-composer::-webkit-scrollbar-thumb,
+.composer-sidebar-panel::-webkit-scrollbar-thumb {
   background: var(--bevel-subtle);
   border-radius: var(--radius-pill);
 }
@@ -506,7 +514,8 @@ html, body {
   overflow: hidden;
 }
 
-.prompt-input-frame, .prompt-field-box:focus-within {
+.prompt-input-frame:focus-within,
+.prompt-field-box:focus-within {
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 0 1px var(--bevel-gold-active), inset 0 2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -534,7 +543,8 @@ textarea#prompt {
   border-top: 1px solid var(--bevel-subtle);
   scrollbar-width: none;
 }
-.quick-tags-lane, .inspiration-tags-lane::-webkit-scrollbar {
+.quick-tags-lane::-webkit-scrollbar,
+.inspiration-tags-lane::-webkit-scrollbar {
   display: none;
 }
 
@@ -551,7 +561,8 @@ textarea#prompt {
   transition: all 0.15s ease;
 }
 
-.tag-pill, .inspire-tag-pill:hover {
+.tag-pill:hover,
+.inspire-tag-pill:hover {
   background: var(--gold-subtle);
   border-color: var(--bevel-gold);
   color: var(--text-pure);
@@ -731,7 +742,8 @@ textarea#prompt {
   transition: border-color 0.18s;
 }
 
-.text-input, .text-input-field:focus {
+.text-input:focus,
+.text-input-field:focus {
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 0 1px var(--bevel-gold-active);
 }
@@ -755,7 +767,8 @@ textarea#prompt {
   transition: all 0.12s ease;
 }
 
-.artist-pill, .artist-chip-pill:hover {
+.artist-pill:hover,
+.artist-chip-pill:hover {
   background: var(--gold-subtle);
   border-color: var(--bevel-gold);
   color: var(--text-pure);
@@ -779,7 +792,8 @@ textarea#prompt {
   transition: all 0.12s ease;
 }
 
-.switch-row, .switch-control-row:hover {
+.switch-row:hover,
+.switch-control-row:hover {
   background: var(--bg-card-hover);
 }
 
@@ -800,18 +814,28 @@ textarea#prompt {
   color: var(--text-muted);
 }
 
-.hardware-switch, .ui-switch-toggle {
+.hardware-switch,
+.ui-switch-toggle {
   position: relative;
+  width: 32px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
-.hardware-switch, .ui-switch-toggle input {
+.hardware-switch input,
+.ui-switch-toggle input {
   position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
   opacity: 0;
-  width: 0;
-  height: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
 }
 
-.hardware-track, .switch-rail {
+.hardware-track,
+.switch-rail {
   display: block;
   width: 32px;
   height: 16px;
@@ -819,10 +843,12 @@ textarea#prompt {
   border: 1px solid var(--bevel-medium);
   border-radius: var(--radius-pill);
   position: relative;
+  pointer-events: none;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.hardware-track, .switch-rail::after {
+.hardware-track::after,
+.switch-rail::after {
   content: "";
   position: absolute;
   top: 1px;
@@ -835,13 +861,19 @@ textarea#prompt {
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.hardware-switch, .ui-switch-toggle input:checked + .hardware-track, .switch-rail {
+.hardware-switch input:checked + .hardware-track,
+.hardware-switch input:checked + .switch-rail,
+.ui-switch-toggle input:checked + .hardware-track,
+.ui-switch-toggle input:checked + .switch-rail {
   background: #1e1f26;
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 6px var(--gold-glow);
 }
 
-.hardware-switch, .ui-switch-toggle input:checked + .hardware-track, .switch-rail::after {
+.hardware-switch input:checked + .hardware-track::after,
+.hardware-switch input:checked + .switch-rail::after,
+.ui-switch-toggle input:checked + .hardware-track::after,
+.ui-switch-toggle input:checked + .switch-rail::after {
   transform: translateX(16px);
   background: var(--gold-bright);
   box-shadow: 0 0 6px var(--gold-bright);
@@ -874,17 +906,20 @@ textarea#prompt {
   overflow: hidden;
 }
 
-.btn-ignition-render, .btn-primary-render:hover:not(:disabled) {
+.btn-ignition-render:hover:not(:disabled),
+.btn-primary-render:hover:not(:disabled) {
   background: var(--btn-heavy-hover);
   border-color: rgba(243, 229, 171, 0.65);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(243, 229, 171, 0.45);
 }
 
-.btn-ignition-render, .btn-primary-render:active:not(:disabled) {
+.btn-ignition-render:active:not(:disabled),
+.btn-primary-render:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.btn-ignition-render, .btn-primary-render:disabled {
+.btn-ignition-render:disabled,
+.btn-primary-render:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;

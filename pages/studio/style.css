@@ -613,8 +613,8 @@ textarea#prompt {
 .swatch-ghostblade { background: linear-gradient(90deg, #6366f1, #3b82f6); }
 .swatch-mature { background: linear-gradient(90deg, #e11d48, #9333ea); }
 .swatch-watercolor { background: linear-gradient(90deg, #10b981, #06b6d4); }
-.swatch-retro { background: linear-gradient(90deg, #b89345, #5c471e); }
-.swatch-oil { background: linear-gradient(90deg, #8c6d32, #c5a059); }
+.swatch-retro { background: linear-gradient(90deg, #c5a059, #8c6d32); }
+.swatch-oil { background: linear-gradient(90deg, #8c6d32, #f3e5ab); }
 
 .preset-meta-row {
   display: flex;

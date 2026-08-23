@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>绘台 · NovelAI 4.5 专业创作工坊</title>
+    <title>绘台</title>
+    <!-- AstrBot 官方 Bridge SDK 同步引用 -->
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -15,7 +17,7 @@
 
     <div class="app-viewport-root">
       <!-- ================= 顶层高定导航栏 ================= -->
-      <header class="studio-navbar">
+      <header class="studio-topbar">
         <div class="navbar-brand-col">
           <div class="brand-badge-box">
             <span class="brand-logo-spark">✦</span>
@@ -382,13 +384,13 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
+                  </svg>
                 <span>上传新载体</span>
                 <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden />
               </label>
             </div>
 
-            <!-- 拖拽上传区 -->
+            <!-- 磁吸拖拽上传区 -->
             <div class="drop-vault-panel" id="cover-drop-zone">
               <div class="vault-bezel-lens">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="vault-svg">

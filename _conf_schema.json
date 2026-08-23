@@ -103,7 +103,7 @@
     "llm_translate": {
         "description": "中文智能翻译",
         "type": "bool",
-        "hint": "开启后，词典和 Danbooru 都未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签并合并。关闭则跳过 LLM，角色名仍可查 Danbooru。",
+        "hint": "开启后，词典和 Bangumi 都未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签并合并。关闭则跳过 LLM，短角色名仍可查 Bangumi。",
         "default": true
     },
     "cover_dir": {

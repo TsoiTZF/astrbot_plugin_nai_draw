@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.7.6
+"""AstrBot 叶子的逼插件 v1.7.7
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """

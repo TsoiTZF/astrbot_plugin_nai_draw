@@ -4,7 +4,7 @@ NAI 只认英文 danbooru 标签，中文描述直接送入基本无效。
 采用三层策略：
 
 1. 词典层：常见描述和高频角色按从左到右最长匹配查表，零成本、离线可用。
-2. Danbooru 层：词典未覆盖的短中文按角色/作品别名查询官方 wiki 与自动补全。
+2. 角色层：词典未覆盖的短中文先查国内 Bangumi，再回退 Danbooru 别名。
 3. LLM 层：仍未覆盖的部分交给 AstrBot 的 LLM provider，再与前两层结果合并。
 
 任一层失败都不阻断出图，能转多少转多少。
@@ -509,12 +509,15 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.4 "
+    "astrbot_plugin_nai_draw/1.7.7 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
+BANGUMI_SEARCH = "https://api.bgm.tv/v0/search/characters"
+BANGUMI_CHARACTER = "https://api.bgm.tv/v0/characters"
 _LOOKUP_CACHE = {}
 _LOOKUP_CACHE_LIMIT = 256
 _NAME_TOKEN_RE = re.compile(r"[一-鿿ぁ-んァ-ン]{2,12}")
+_LATIN_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 .'\-]{1,80}$")
 
 LLM_INSTRUCTION = (
     "你是 danbooru 标签转换器。把用户的中文画面描述转成英文 danbooru 标签。\n"
@@ -719,18 +722,32 @@ def _sanitize_llm_output(raw):
     return ", ".join(tags[:25]) if tags else None
 
 
-def _fetch_json(url, timeout=2.5):
-    """请求 JSON。测试时可替换此函数，避免真实网络。"""
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": DANBOORU_UA,
-            "Accept": "application/json",
-        },
-    )
+def _fetch_json(url, timeout=2.5, data=None):
+    """请求 JSON。data 非空时发 POST。测试时可替换此函数。"""
+    headers = {
+        "User-Agent": DANBOORU_UA,
+        "Accept": "application/json",
+    }
+    body = None
+    method = "GET"
+    if data is not None:
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+        method = "POST"
+    request = urllib.request.Request(url, data=body, headers=headers, method=method)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         raw = response.read().decode("utf-8", errors="replace")
     return json.loads(raw)
+
+
+def _call_fetch(fetch, url, data=None):
+    """兼容只接收 url 的测试桩。"""
+    if data is None:
+        return fetch(url)
+    try:
+        return fetch(url, data=data)
+    except TypeError:
+        return fetch(url)
 
 
 def _cache_get(name):
@@ -778,6 +795,124 @@ def _name_candidates(leftover):
     return []
 
 
+def _infobox_pairs(infobox):
+    pairs = []
+    if not isinstance(infobox, list):
+        return pairs
+    for item in infobox:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("key") or "").strip()
+        value = item.get("value")
+        if isinstance(value, str) and value.strip():
+            pairs.append((key, value.strip()))
+            continue
+        if not isinstance(value, list):
+            continue
+        for sub in value:
+            if isinstance(sub, dict) and str(sub.get("v") or "").strip():
+                pairs.append((key, str(sub.get("v")).strip()))
+            elif isinstance(sub, str) and sub.strip():
+                pairs.append((key, sub.strip()))
+    return pairs
+
+
+def _latin_tag(text):
+    value = str(text or "").strip().replace("_", " ")
+    value = re.sub(r"\s+", " ", value)
+    if not _LATIN_NAME_RE.match(value):
+        return None
+    return value.lower()
+
+
+def _bangumi_aliases(detail):
+    names = []
+    if not isinstance(detail, dict):
+        return names
+    for key in ("name_cn", "name"):
+        value = str(detail.get(key) or "").strip()
+        if value:
+            names.append(value)
+    for key, value in _infobox_pairs(detail.get("infobox")):
+        if value:
+            names.append(value)
+    return names
+
+
+def _bangumi_latin_tag(detail):
+    preferred_keys = {"罗马字", "英文名", "第二中文名", "别名", "日文名"}
+    latin = []
+    for key, value in _infobox_pairs(detail.get("infobox") if isinstance(detail, dict) else None):
+        tag = _latin_tag(value)
+        if not tag:
+            continue
+        latin.append((0 if key in preferred_keys else 1, -len(tag), tag))
+    name_tag = _latin_tag((detail or {}).get("name") if isinstance(detail, dict) else "")
+    if name_tag:
+        latin.append((2, -len(name_tag), name_tag))
+    if not latin:
+        return None
+    latin.sort()
+    return latin[0][2]
+
+
+def _bangumi_person_tag(detail):
+    gender = str((detail or {}).get("gender") or "").strip().lower()
+    if gender in {"female", "女"}:
+        return "1girl"
+    if gender in {"male", "男"}:
+        return "1boy"
+    return "1girl"
+
+
+def _lookup_bangumi(name, fetch):
+    """国内可访问的 Bangumi 角色搜索，用中文短名换拉丁角色标签。"""
+    payload = _call_fetch(
+        fetch,
+        f"{BANGUMI_SEARCH}?limit=5",
+        data={"keyword": name},
+    )
+    items = []
+    if isinstance(payload, dict):
+        items = payload.get("data") or []
+    elif isinstance(payload, list):
+        items = payload
+    if not isinstance(items, list):
+        return None
+
+    best = None
+    for item in items[:5]:
+        if not isinstance(item, dict):
+            continue
+        character_id = item.get("id")
+        detail = item
+        if character_id not in (None, ""):
+            try:
+                fetched = _call_fetch(fetch, f"{BANGUMI_CHARACTER}/{character_id}")
+                if isinstance(fetched, dict) and fetched:
+                    detail = fetched
+            except Exception:
+                detail = item
+        aliases = _bangumi_aliases(detail)
+        exact = name in aliases or name == str(detail.get("name_cn") or "").strip()
+        contained = any(name in alias for alias in aliases if alias)
+        latin = _bangumi_latin_tag(detail)
+        if not latin:
+            continue
+        if exact:
+            score = 2
+        elif contained:
+            score = 1
+        else:
+            continue
+        if best is None or score > best[0]:
+            best = (score, latin, _bangumi_person_tag(detail))
+    if not best:
+        return None
+    _, latin, person = best
+    return f"{person}, {latin}"
+
+
 def _lookup_autocomplete(name, fetch):
     """Danbooru 自动补全会按 other_names 搜中文，但响应里通常不带回中文别名。"""
     query = urllib.parse.urlencode(
@@ -787,7 +922,7 @@ def _lookup_autocomplete(name, fetch):
             "limit": 10,
         }
     )
-    data = fetch(f"{DANBOORU_AUTOCOMPLETE}?{query}")
+    data = _call_fetch(fetch, f"{DANBOORU_AUTOCOMPLETE}?{query}")
     if not isinstance(data, list):
         return None
     best = None
@@ -824,7 +959,7 @@ def _lookup_wiki(name, fetch):
             "limit": 8,
         }
     )
-    data = fetch(f"{DANBOORU_WIKI}?{query}")
+    data = _call_fetch(fetch, f"{DANBOORU_WIKI}?{query}")
     if not isinstance(data, list):
         return None
     exact = []
@@ -848,7 +983,7 @@ def _lookup_wiki(name, fetch):
             query = urllib.parse.urlencode(
                 {"search[name]": tag.replace(" ", "_"), "limit": 1}
             )
-            payload = fetch(f"{DANBOORU_TAGS}?{query}")
+            payload = _call_fetch(fetch, f"{DANBOORU_TAGS}?{query}")
             if isinstance(payload, list) and payload:
                 posts = int(payload[0].get("post_count") or 0)
         except Exception:
@@ -869,7 +1004,12 @@ def lookup_name_sync(name, fetch=None):
     fetch = fetch or _fetch_json
     tag = ""
     try:
-        tag = _lookup_wiki(token, fetch) or _lookup_autocomplete(token, fetch) or ""
+        tag = (
+            _lookup_bangumi(token, fetch)
+            or _lookup_wiki(token, fetch)
+            or _lookup_autocomplete(token, fetch)
+            or ""
+        )
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
         logger.debug(f"[叶子的逼] Danbooru 角色查询失败: {exc}")
         tag = ""
@@ -917,9 +1057,8 @@ def resolve_unknown_names(leftover, fetch=None, raw=""):
 async def to_tags(context, text, use_llm=True, fetch=None):
     """把用户输入转为标签串，返回 (标签, 说明)。
 
-    纯英文输入直接返回。中文先走词典，再查 Danbooru 角色/作品别名；
-    仍有画面意义的残留时才把整句交给 LLM，并与前两层结果合并。
-    fetch 仅测试注入，生产环境走官方 Danbooru JSON。
+    纯英文输入直接返回。中文先走词典，短角色名再查国内 Bangumi，
+    查不到才回退 Danbooru；仍有画面意义的残留时才把整句交给 LLM。
     """
     raw = str(text or "").strip()
     if not raw:
@@ -950,4 +1089,4 @@ async def to_tags(context, text, use_llm=True, fetch=None):
         return merged, f"未识别部分已忽略：{leftover}"
     if not merged:
         return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
-    return merged, ""
+    return merged, "已智能翻译"

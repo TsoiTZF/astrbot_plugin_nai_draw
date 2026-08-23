@@ -213,7 +213,7 @@ def test_to_tags():
         tags, note = await to_tags(ctx, "明日香", use_llm=True)
         check("souryuu asuka langley" in tags, "单发明日香走词典角色标签")
         check("1girl" in tags, "单发明日香补 1girl")
-        check(note == "", "单发明日香不提示翻译失败")
+        check("智能翻译" in note, "单发明日香仍提示已智能翻译")
 
         # 词典未覆盖 + LLM 关闭
         tags, note = await to_tags(None, "长发女孩拿着量子纠缠矩阵", use_llm=False)
@@ -224,7 +224,7 @@ def test_to_tags():
         ctx = FakeContext(GuardProvider(reply="should not run"))
         tags, note = await to_tags(ctx, "长发女孩拿着一把青龙偃月刀", use_llm=True)
         check("guandao" in tags and "1girl" in tags, "已知中文整句走词典")
-        check(note == "", "无残留时不提示智能翻译")
+        check("智能翻译" in note, "词典全命中也提示已智能翻译")
 
         # LLM 成功：补上词典未覆盖的部分，并与词典结果合并
         ctx = FakeContext(FakeProvider(reply="1girl, long hair, holding, quantum matrix"))
@@ -261,29 +261,37 @@ def test_to_tags():
         tags, note = await to_tags(None, "", use_llm=False)
         check(tags == "", "空输入返回空")
 
-        # 词典没有的角色名走 Danbooru 别名查询，不依赖手写词条
+        # 词典没有的角色名走国内 Bangumi，不依赖手写词条
         _LOOKUP_CACHE.clear()
 
-        def fake_fetch(url, timeout=8):
-            if "wiki_pages.json" in url and "search%5Bother_names_match%5D" in url:
-                return [
-                    {
-                        "title": "yae_miko",
-                        "other_names": ["八重神子", "神子"],
-                    }
-                ]
-            if "autocomplete.json" in url:
-                return []
-            if "tags.json" in url:
-                return [{"name": "yae_miko", "post_count": 90000, "category": 4}]
+        def fake_fetch(url, timeout=8, data=None):
+            if "api.bgm.tv/v0/search/characters" in url:
+                return {
+                    "data": [
+                        {
+                            "id": 61406,
+                            "name": "Yae Miko",
+                            "name_cn": "八重神子",
+                        }
+                    ]
+                }
+            if "api.bgm.tv/v0/characters/61406" in url:
+                return {
+                    "id": 61406,
+                    "name": "Yae Miko",
+                    "name_cn": "八重神子",
+                    "gender": "female",
+                    "infobox": [{"key": "罗马字", "value": "Yae Miko"}],
+                }
             raise AssertionError(f"未预期的查询: {url}")
 
         tags, leftover = resolve_unknown_names("八重神子", fetch=fake_fetch)
-        check("yae miko" in tags, "未知角色名可查 Danbooru wiki")
+        check("yae miko" in tags, "未知角色名可查国内 Bangumi")
+        check("1girl" in tags, "Bangumi 命中后补人数标签")
         check(leftover == "", "查到角色后无残留")
 
-        def no_fetch(url, timeout=8):
-            raise AssertionError(f"普通画面描述不应查询 Danbooru: {url}")
+        def no_fetch(url, timeout=8, data=None):
+            raise AssertionError(f"普通画面描述不应查询外网: {url}")
 
         tags, note = await to_tags(
             None, "长发女孩拿着量子纠缠矩阵", use_llm=False, fetch=no_fetch
@@ -299,16 +307,16 @@ def test_to_tags():
 
         class GuardProvider(FakeProvider):
             async def text_chat(self, prompt=""):
-                raise AssertionError("Danbooru 已命中时不应调用 LLM")
+                raise AssertionError("Bangumi 已命中时不应调用 LLM")
 
         ctx = FakeContext(GuardProvider(reply="should not run"))
         tags, note = await to_tags(
             ctx, "八重神子", use_llm=True, fetch=fake_fetch
         )
-        check("yae miko" in tags, "单发未知角色名走 Danbooru 查询")
-        check(note == "", "Danbooru 命中后不报翻译失败")
+        check("yae miko" in tags, "单发未知角色名走国内 Bangumi")
+        check("智能翻译" in note, "Bangumi 命中后仍提示已智能翻译")
 
-        def boom_fetch(url, timeout=8):
+        def boom_fetch(url, timeout=8, data=None):
             raise TimeoutError("模拟外网超时")
 
         _LOOKUP_CACHE.clear()

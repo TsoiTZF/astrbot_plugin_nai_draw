@@ -3,129 +3,266 @@
 NAI 只认英文 danbooru 标签，中文描述直接送入基本无效。
 采用两层策略：
 
-1. 词典层：常见描述直接查表命中，零成本、离线可用、结果稳定。
-2. LLM 层：词典未覆盖的部分交给 AstrBot 的 LLM provider 转换。
+1. 词典层：常见描述按从左到右最长匹配查表，零成本、离线可用、结果稳定。
+2. LLM 层：词典未覆盖的剩余中文交给 AstrBot 的 LLM provider 转换，再与词典结果合并。
 
 LLM 不可用时降级为仅词典结果，不阻断出图。
 """
 
 import re
+from collections import defaultdict
 
 from astrbot.api import logger
 
 # 中文描述到 danbooru 标签的映射。
 # 键为可能出现的中文写法，值为对应标签，多个标签用逗号分隔。
-# 按键长度倒序匹配，长词优先命中，避免「长发」被「发」截断。
+# 匹配时从左到右取当前位置能命中的最长键，避免「长发」被「发」截断。
 LEXICON = {
     # ---- 人数与主体 ----
+    "一个女孩": "1girl, solo", "一位少女": "1girl, solo", "一名少女": "1girl, solo",
     "女孩": "1girl", "少女": "1girl", "女生": "1girl", "女性": "1girl",
-    "一个女孩": "1girl, solo", "单人": "solo", "独自": "solo",
-    "男孩": "1boy", "少年": "1boy", "男性": "1boy",
-    "两个女孩": "2girls", "三个女孩": "3girls",
+    "女高中生": "1girl, high school", "女学生": "1girl, student",
+    "单人": "solo", "独自": "solo", "一个人": "solo",
+    "男孩": "1boy", "少年": "1boy", "男性": "1boy", "男生": "1boy",
+    "两个女孩": "2girls", "两个少女": "2girls", "三个女孩": "3girls",
+    "双人": "2girls", "多人": "multiple girls", "多人群": "multiple girls",
+    "御姐风": "mature female, adult woman",
     "御姐": "mature female, adult woman", "成熟女性": "mature female",
-    "少妇": "mature female", "阿姨": "mature female",
-    "正太": "shota", "萝莉": "loli",
-    "情侣": "1boy, 1girl", "双人": "2girls", "多人群": "multiple girls",
+    "少妇": "mature female", "阿姨": "mature female", "熟女": "mature female",
+    "正太": "shota", "萝莉": "loli", "幼女": "loli",
+    "情侣": "1boy, 1girl", "姐弟": "1boy, 1girl",
+    "美人": "beautiful", "美女": "1girl, beautiful",
+    "绝美少女": "1girl, beautiful", "空灵少女": "1girl, ethereal",
+    "指挥官少女": "1girl, commander",
+    "天使": "angel, wings", "恶魔": "demon, demon horns",
+    "吸血鬼": "vampire", "魔女": "witch", "女巫": "witch",
+    "精灵": "elf, pointy ears", "妖精": "fairy, wings",
+    "猫娘": "cat girl, cat ears, cat tail",
+    "兔娘": "bunny girl, bunny ears",
+    "狐娘": "fox girl, fox ears, fox tail",
+    "龙娘": "dragon girl", "人鱼": "mermaid",
+    "机甲少女": "1girl, mecha, mecha musume",
+    "机能少女": "1girl, cyberpunk, bodysuit",
+    "女仆": "maid", "护士": "nurse", "巫女": "miko",
+    "偶像": "idol", "公主": "princess", "女王": "queen",
+    "骑士": "knight", "武士": "samurai", "忍者": "ninja",
+    "魔法少女": "magical girl", "学生": "student",
+    "老师": "teacher", "秘书": "secretary",
 
     # ---- 发长与发型 ----
-    "长发": "long hair", "短发": "short hair", "中长发": "medium hair",
-    "超长发": "very long hair", "及腰长发": "very long hair",
     "拖地长发": "absurdly long hair",
-    "双马尾": "twintails", "马尾": "ponytail", "单马尾": "ponytail",
-    "丸子头": "hair bun", "双丸子": "double bun", "盘发": "hair bun",
-    "波波头": "bob cut", "齐肩": "medium hair", "齐刘海": "blunt bangs",
-    "刘海": "bangs", "编发": "braid", "麻花辫": "braid", "双辫": "twin braids",
+    "及腰长发": "very long hair", "超长发": "very long hair",
+    "湿润发丝": "wet hair", "漂浮发丝": "floating hair",
+    "长发": "long hair", "短发": "short hair", "中长发": "medium hair",
+    "齐肩短发": "short hair, bob cut", "齐肩": "medium hair",
+    "双马尾": "twintails", "单马尾": "ponytail", "侧马尾": "side ponytail",
+    "高马尾": "high ponytail", "低马尾": "low ponytail", "马尾": "ponytail",
+    "双丸子头": "double bun", "双丸子": "double bun",
+    "丸子头": "hair bun", "盘发": "hair bun",
+    "波波头": "bob cut", "齐刘海": "blunt bangs", "斜刘海": "swept bangs",
+    "刘海": "bangs", "无刘海": "hair between eyes",
+    "麻花辫": "braid", "双辫": "twin braids", "编发": "braid",
+    "单辫": "single braid", "法式辫": "french braid",
     "卷发": "wavy hair", "大波浪": "wavy hair", "直发": "straight hair",
-    "凌乱头发": "messy hair", "湿发": "wet hair", "侧马尾": "side ponytail",
-    "心形发": "heart hair bun", "呆毛": "ahoge",
+    "凌乱头发": "messy hair", "凌乱发型": "messy hair", "乱发": "messy hair",
+    "湿发": "wet hair", "心形发": "heart hair bun", "呆毛": "ahoge",
+    "披肩发": "hair over shoulder", "遮眼发": "hair over eyes",
+    "侧扫发": "sidelocks", "鬓发": "sidelocks",
+    "高髻": "high bun", "散发": "hair down",
+    "头发": "hair", "发丝": "hair",
 
     # ---- 发色 ----
+    "紫罗兰发": "lavender hair", "渐变发色": "gradient hair",
     "黑发": "black hair", "白发": "white hair", "银发": "silver hair",
     "金发": "blonde hair", "棕发": "brown hair", "栗发": "chestnut hair",
-    "红发": "red hair", "粉发": "pink hair", "蓝发": "blue hair",
-    "绿发": "green hair", "紫发": "purple hair", "橙发": "orange hair",
-    "青发": "teal hair", "紫罗兰发": "lavender hair", "亚麻色": "light brown hair",
-    "渐变发色": "gradient hair", "挑染": "streaked hair",
+    "红发": "red hair", "粉发": "pink hair", "粉色头发": "pink hair",
+    "蓝发": "blue hair", "绿发": "green hair", "紫发": "purple hair",
+    "橙发": "orange hair", "青发": "teal hair",
+    "亚麻色": "light brown hair", "挑染": "streaked hair",
+    "双色发": "two-tone hair", "彩虹发": "rainbow hair",
 
     # ---- 瞳色 ----
-    "黑眼": "black eyes", "蓝眼": "blue eyes", "红眼": "red eyes",
-    "绿眼": "green eyes", "紫眼": "purple eyes", "金眼": "golden eyes",
-    "琥珀眼": "amber eyes", "灰眼": "grey eyes", "粉眼": "pink eyes",
+    "黑眼": "black eyes", "黑瞳": "black eyes",
+    "蓝眼": "blue eyes", "蓝瞳": "blue eyes",
+    "红眼": "red eyes", "红瞳": "red eyes",
+    "绿眼": "green eyes", "绿瞳": "green eyes",
+    "紫眼": "purple eyes", "紫瞳": "purple eyes",
+    "金眼": "golden eyes", "金瞳": "golden eyes",
+    "琥珀眼": "amber eyes", "琥珀瞳": "amber eyes",
+    "灰眼": "grey eyes", "灰瞳": "grey eyes",
+    "粉眼": "pink eyes", "粉瞳": "pink eyes",
     "异色瞳": "heterochromia", "渐变瞳": "gradient eyes",
+    "荧光眼眸": "glowing eyes", "发光眼睛": "glowing eyes",
+    "眼眸": "eyes",
 
     # ---- 眼型与表情 ----
-    "笑": "smile", "微笑": "soft smile", "笑容": "smile",
-    "大笑": "open mouth, laughing", "灿烂笑": ":d",
+    "精致五官": "detailed face",
+    "灿烂笑": ":d", "大笑": "open mouth, laughing",
+    "微笑": "soft smile", "笑容": "smile", "笑": "smile",
     "坏笑": "smirk", "得意": "smug", "自信": "confident",
     "冷漠": "expressionless", "无表情": "expressionless",
-    "严肃": "serious", "生气": "angry", "皱眉": "furrowed brow",
-    "撅嘴": "pout", "不满": "pout", "害羞": "blush, embarrassed",
-    "脸红": "blush", "哭": "crying", "流泪": "tears",
-    "落泪": "tears", "含泪": "tears, crying",
-    "惊讶": "surprised, wide eyes", "困": "sleepy, half-closed eyes",
+    "严肃": "serious", "生气": "angry", "愤怒": "angry",
+    "皱眉": "furrowed brow", "撅嘴": "pout", "不满": "pout",
+    "害羞": "blush, embarrassed", "脸红": "blush",
+    "哭": "crying", "流泪": "tears", "落泪": "tears",
+    "含泪": "tears, crying", "抽泣": "crying",
+    "惊讶": "surprised, wide eyes", "震惊": "shocked",
+    "困": "sleepy, half-closed eyes", "困倦": "sleepy",
     "闭眼": "closed eyes", "半闭眼": "half-closed eyes",
     "垂眼": "tareme", "吊眼": "tsurime", "眯眼": "narrowed eyes",
     "妩媚": "seductive smile, half-closed eyes", "诱惑": "seductive smile",
-    "温柔": "gentle smile", "看着镜头": "looking at viewer",
-    "看向别处": "looking away", "回头": "looking back",
+    "温柔": "gentle smile", "治愈": "gentle smile, warm lighting",
+    "看着镜头": "looking at viewer", "看向镜头": "looking at viewer",
+    "看向别处": "looking away", "看窗外": "looking out window",
+    "回头": "looking back", "回眸": "looking back",
     "抬头": "looking up", "低头": "looking down",
     "侧颜": "profile", "侧脸": "profile",
     "吐舌": "tongue out", "舔唇": "licking lips",
+    "咬唇": "biting lip", "眨眼": "wink",
+    "开朗": "cheerful", "忧郁": "sad", "悲伤": "sad",
+    "平静": "calm", "专注": "focused",
+    "傲娇": "tsundere", "病娇": "yandere",
+    "空灵": "ethereal", "神秘": "mysterious",
 
     # ---- 服装 ----
-    "校服": "school uniform", "水手服": "sailor collar, school uniform",
-    "制服": "uniform", "连衣裙": "dress", "白裙": "white dress",
-    "长裙": "long dress", "短裙": "skirt", "百褶裙": "pleated skirt",
-    "衬衫": "shirt", "白衬衫": "white shirt", "毛衣": "sweater",
-    "针织衫": "knit sweater", "外套": "jacket", "皮夹克": "leather jacket",
+    "jk制服": "jk uniform, school uniform",
+    "JK制服": "jk uniform, school uniform",
+    "水手服上衣": "sailor shirt",
+    "水手服": "sailor collar, school uniform",
+    "校服": "school uniform", "制服": "uniform",
+    "白色连衣裙": "white dress", "黑色连衣裙": "black dress",
+    "红色连衣裙": "red dress", "连衣裙": "dress",
+    "白裙": "white dress", "长裙": "long dress", "短裙": "skirt",
+    "百褶裙": "pleated skirt", "格子裙": "plaid skirt",
+    "白衬衫": "white shirt", "衬衫": "shirt",
+    "针织衫": "knit sweater", "毛衣": "sweater",
+    "皮夹克": "leather jacket", "外套": "jacket",
     "大衣": "coat", "风衣": "trench coat", "西装": "suit",
     "旗袍": "china dress", "汉服": "hanfu", "和服": "kimono",
     "浴衣": "yukata", "婚纱": "wedding dress", "礼服": "evening gown",
-    "泳装": "swimsuit", "比基尼": "bikini", "连体泳衣": "one-piece swimsuit",
-    "内衣": "lingerie", "蕾丝": "lace", "丝袜": "thighhighs",
-    "过膝袜": "thighhighs", "黑丝": "black thighhighs", "白丝": "white thighhighs",
+    "连体泳衣": "one-piece swimsuit", "泳装": "swimsuit", "比基尼": "bikini",
+    "内衣": "lingerie", "蕾丝": "lace",
+    "过膝袜": "thighhighs", "黑丝": "black thighhighs",
+    "白丝": "white thighhighs", "丝袜": "thighhighs",
+    "连裤袜": "pantyhose", "黑裤袜": "black pantyhose",
     "露肩": "off shoulder", "吊带": "camisole", "背心": "tank top",
     "运动服": "sportswear", "睡衣": "pajamas", "浴袍": "bathrobe",
     "女仆装": "maid, maid headdress", "护士服": "nurse",
-    "铠甲": "armor", "斗篷": "cape", "披风": "cloak",
-    "jk制服": "jk uniform", "格子裙": "plaid skirt",
+    "巫女服": "miko", "铠甲": "armor",
+    "斗篷": "cape", "披风": "cloak",
     "卫衣": "hoodie", "牛仔裤": "jeans", "短裤": "shorts",
-    "热裤": "short shorts", "围裙": "apron", "裸体围裙": "naked apron",
-    "水手服上衣": "sailor shirt",
+    "热裤": "short shorts", "裸体围裙": "naked apron", "围裙": "apron",
+    "洛丽塔洋装": "lolita fashion, dress",
+    "洛丽塔": "lolita fashion", "洋装": "dress",
+    "哥特洛丽塔": "gothic lolita", "哥特": "gothic",
+    "机能风风衣": "techwear, trench coat",
+    "机能风": "techwear, cyberpunk",
+    "赛博朋克": "cyberpunk", "未来战甲": "futuristic armor",
+    "紧身衣": "bodysuit", "胶衣": "latex",
+    "晚礼服": "evening gown", "纱裙": "sheer dress",
+    "古风黑金汉服": "hanfu, black, gold",
+    "黑金汉服": "hanfu, black, gold",
+    "古风": "ancient chinese clothes",
+    "华美刺绣": "embroidery, ornate",
+    "破旧衣服": "torn clothes", "湿衣服": "wet clothes",
+    "敞开外套": "open jacket", "解开扣子": "unbuttoned",
+    "赤脚": "barefoot", "裸足": "barefoot",
 
     # ---- 配饰 ----
-    "眼镜": "glasses", "帽子": "hat", "草帽": "straw hat",
-    "发饰": "hair ornament", "发带": "hair ribbon", "蝴蝶结": "bow",
-    "项链": "necklace", "耳环": "earrings", "choker": "choker",
-    "颈环": "choker", "手套": "gloves", "长手套": "elbow gloves",
-    "皇冠": "tiara", "面纱": "veil", "口罩": "mask",
-    "猫耳": "cat ears", "兔耳": "bunny ears", "头戴耳机": "headphones",
-    "围巾": "scarf", "领带": "necktie", "蝴蝶结领带": "ribbon tie",
-    "太阳镜": "sunglasses", "头花": "hair flower",
+    "蕾丝发带": "lace, hair ribbon",
+    "头戴耳机": "headphones", "战术目镜": "tactical visor, goggles",
+    "眼镜": "glasses", "太阳镜": "sunglasses",
+    "帽子": "hat", "草帽": "straw hat", "贝雷帽": "beret",
+    "发饰": "hair ornament", "发带": "hair ribbon",
+    "蝴蝶结领带": "ribbon tie", "蝴蝶结": "bow",
+    "项链": "necklace", "耳环": "earrings", "耳钉": "earrings",
+    "choker": "choker", "颈环": "choker", "项圈": "choker",
+    "长手套": "elbow gloves", "手套": "gloves",
+    "皇冠": "tiara", "王冠": "crown", "面纱": "veil", "口罩": "mask",
+    "猫耳": "cat ears", "兔耳": "bunny ears", "狐耳": "fox ears",
+    "围巾": "scarf", "领带": "necktie",
+    "头花": "hair flower", "花饰": "flower",
+    "机械义肢": "mechanical arms, cyborg",
+    "发光线缆": "glowing cables",
+    "全息投影": "hologram",
+    "折扇": "folding fan", "团扇": "uchiwa",
+    "雨伞": "umbrella", "阳伞": "parasol",
+    "背包": "backpack", "书包": "school bag",
+    "手提包": "handbag", "公文包": "briefcase",
+    "手表": "watch", "手镯": "bracelet", "戒指": "ring",
+    "纹身": "tattoo", "眼罩": "eyepatch",
+    "翅膀": "wings", "光环": "halo",
+    "猫尾": "cat tail", "狐尾": "fox tail", "兔尾": "bunny tail",
 
     # ---- 姿势与动作 ----
-    "站": "standing", "站着": "standing", "坐": "sitting", "坐着": "sitting",
-    "躺": "lying", "躺着": "lying", "跪": "kneeling", "跪着": "kneeling",
-    "蹲": "squatting", "走": "walking", "跑": "running",
-    "跳": "jumping", "转身": "turning around", "伸手": "reaching out",
-    "举手": "arm up", "抱膝": "knees to chest", "交腿": "crossed legs",
-    "抱臂": "crossed arms", "手扶腰": "hand on hip", "托腮": "head rest",
-    "手撑脸": "hand on own cheek", "拢发": "hand in own hair",
-    "背手": "arms behind back", "伸懒腰": "stretching",
-    "回眸": "looking back", "歪头": "head tilt",
+    "站着": "standing", "坐着": "sitting", "躺着": "lying",
+    "跪着": "kneeling", "趴着": "lying on stomach",
+    "站": "standing", "坐": "sitting", "躺": "lying",
+    "跪": "kneeling", "蹲": "squatting",
+    "走": "walking", "跑": "running", "跳": "jumping",
+    "转身": "turning around", "伸手": "reaching out",
+    "举手": "arm up", "双手举起": "arms up",
+    "抱膝": "knees to chest", "交腿": "crossed legs",
+    "抱臂": "crossed arms", "手扶腰": "hand on hip",
+    "托腮": "head rest", "手撑脸": "hand on own cheek",
+    "拢发": "hand in own hair", "背手": "arms behind back",
+    "伸懒腰": "stretching", "歪头": "head tilt",
     "翘腿": "legs up", "叉腰": "hands on hips",
-    "趴": "lying on stomach", "趴着": "lying on stomach",
-    "仰躺": "lying on back", "侧躺": "lying on side",
-    "瑜伽": "yoga pose", "猫腰": "arched back",
+    "趴": "lying on stomach", "仰躺": "lying on back",
+    "侧躺": "lying on side", "瑜伽": "yoga pose", "猫腰": "arched back",
     "飞翔": "flying", "漂浮": "floating",
+    "跳舞": "dancing", "战斗": "fighting", "挥剑": "swinging weapon",
+    "持剑": "holding sword", "拔刀": "drawing sword",
+    "手持": "holding", "拿着": "holding", "握着": "holding",
+    "穿着": "wearing", "戴着": "wearing",
+    "看书": "reading, book", "写字": "writing",
+    "喝茶": "drinking, tea", "喝酒": "drinking, alcohol",
+    "吃东西": "eating", "唱歌": "singing",
+    "拥抱": "hug", "牵手": "holding hands", "亲吻": "kiss",
+    "比心": "heart hands", "挥手": "waving",
+    "祈祷": "praying", "沉思": "thinking",
+    "倚靠": "leaning", "靠墙": "against wall",
+    "从水中升起": "emerging from water",
+    "回头看": "looking back",
+
+    # ---- 构图与镜头 ----
+    "全身像": "full body", "全身": "full body",
+    "半身像": "upper body", "半身": "upper body",
+    "特写": "close-up", "面部特写": "portrait, close-up",
+    "侧光特写": "close-up, side lighting",
+    "从侧面": "from side", "侧面": "from side, profile",
+    "正面": "from front, looking at viewer",
+    "背面": "from behind", "背影": "from behind",
+    "俯视": "from above", "仰视": "from below",
+    "鸟瞰": "bird's eye view", "虫视": "worm's eye view",
+    "过肩镜头": "over shoulder",
+    "三分构图": "rule of thirds",
+    "居中构图": "centered",
+    "广角": "wide shot", "远景": "wide shot",
+    "中景": "medium shot", "近景": "close-up",
+    "动态模糊": "motion blur",
+    "景深": "depth of field", "虚化": "bokeh",
+    "电影级光影": "cinematic lighting",
+    "电影感": "cinematic lighting",
+    "微光暗调": "dim lighting, chiaroscuro",
+    "微光": "soft lighting",
+    "唯美仙侠": "xianxia, beautiful, ethereal",
+    "仙侠": "xianxia, chinese clothes",
 
     # ---- 场景 ----
+    "雨夜霓虹街头": "night, rain, neon lights, street",
+    "雨夜街道": "night, rain, street",
+    "雨夜": "night, rain",
+    "霓虹街头": "neon lights, street",
     "教室": "classroom", "学校": "school", "图书馆": "library",
     "咖啡厅": "cafe", "卧室": "bedroom", "床上": "on bed",
     "客厅": "living room", "浴室": "bathroom", "厨房": "kitchen",
     "办公室": "office", "街道": "street", "小巷": "alley",
-    "城市": "cityscape", "夜景": "night, city lights", "海边": "beach, ocean",
+    "城市": "cityscape", "夜景": "night, city lights",
+    "海边": "beach, ocean", "海滩": "beach", "沙滩": "beach, sand",
     "泳池": "poolside", "森林": "forest", "花田": "flower field",
+    "向日葵花海": "sunflower, flower field",
+    "花海": "flower field", "向日葵": "sunflower",
     "樱花": "cherry blossoms", "雪": "snow", "雨": "rain",
     "屋顶": "rooftop", "阳台": "balcony", "窗边": "window",
     "神社": "shrine", "宫殿": "palace", "废墟": "ruins",
@@ -136,15 +273,67 @@ LEXICON = {
     "草原": "grassland", "沙漠": "desert", "瀑布": "waterfall",
     "车站": "train station", "列车": "train", "飞机": "airplane",
     "花园": "garden", "桥": "bridge", "城堡": "castle",
+    "深海幽蓝幻境": "underwater, deep sea, blue theme, fantasy",
+    "深海": "underwater, deep sea", "海底": "underwater",
+    "水下": "underwater", "水面": "on water",
+    "星际战舰舰桥": "spaceship, bridge, sci-fi",
+    "战舰舰桥": "spaceship, bridge",
+    "舰桥": "bridge, spaceship", "战舰": "spaceship, warship",
+    "星云璀璨": "nebula, starry sky", "星云": "nebula",
+    "太空": "space, starry sky", "宇宙": "space",
+    "赛博都市": "cyberpunk, cityscape, neon lights",
+    "天台": "rooftop", "钟楼": "clock tower",
+    "教堂": "church", "钟塔": "clock tower",
+    "湖边": "lake", "河边": "river", "溪流": "stream",
+    "夜市": "night market", "祭典": "festival",
+    "烟火": "fireworks", "灯笼": "lantern",
+    "夏日祭": "summer festival", "夏日": "summer",
+    "冬日": "winter", "秋日": "autumn", "春日": "spring",
+    "微风": "breeze, wind", "大风": "wind",
+    "雷雨": "thunderstorm, rain", "雾": "fog", "云": "clouds",
+
+    # ---- 物品与武器 ----
+    "青龙偃月刀": "guandao, guan dao, weapon",
+    "偃月刀": "guandao, weapon",
+    "武士刀": "katana, sword", "太刀": "katana, sword",
+    "长剑": "sword", "短剑": "dagger", "匕首": "dagger",
+    "剑": "sword", "刀": "sword", "枪": "gun",
+    "步枪": "rifle", "手枪": "handgun", "狙击枪": "sniper rifle",
+    "弓箭": "bow, arrow", "长弓": "bow", "弩": "crossbow",
+    "长枪": "spear", "长矛": "spear", "戟": "halberd",
+    "斧": "axe", "锤": "hammer", "鞭": "whip",
+    "法杖": "staff", "魔杖": "wand", "魔导书": "grimoire, book",
+    "盾": "shield", "镰刀": "scythe",
+    "雨夜霓虹": "night, rain, neon lights",
+    "发光水母": "jellyfish, glowing", "水母": "jellyfish",
+    "梦幻水波倒影": "reflection, water, ripples, dreamy",
+    "水波倒影": "reflection, water, ripples",
+    "倒影": "reflection", "水波": "ripples, water",
+    "红酒玫瑰": "red wine, rose", "红酒": "red wine, wine glass",
+    "玫瑰": "rose", "花束": "bouquet",
+    "书": "book", "茶杯": "teacup", "咖啡杯": "coffee cup",
+    "酒杯": "wine glass", "蜡烛": "candle",
+    "灯笼": "lantern", "灯": "lamp",
+    "伞": "umbrella", "扇子": "fan",
+    "手机": "smartphone", "电脑": "computer",
+    "耳机": "headphones", "相机": "camera",
+    "自行车": "bicycle", "摩托车": "motorcycle",
+    "汽车": "car", "马车": "horse, cart",
 
     # ---- 光照与氛围 ----
-    "逆光": "backlighting", "侧光": "side lighting", "柔光": "soft lighting",
+    "柔和逆光": "backlighting, soft lighting",
+    "逆光": "backlighting", "侧光": "side lighting",
+    "柔光": "soft lighting", "硬光": "hard lighting",
     "阳光": "sunlight", "暖光": "warm lighting", "冷光": "cool lighting",
     "霓虹": "neon lights", "烛光": "candlelight", "光斑": "bokeh",
     "梦幻": "dreamy", "唯美": "beautiful", "氛围感": "atmospheric",
-    "电影感": "cinematic lighting", "景深": "depth of field",
-    "丁达尔": "sunbeam", "光线": "light rays", "发光": "glowing",
+    "丁达尔": "sunbeam", "光线追踪": "ray tracing, realistic lighting",
+    "光线": "light rays", "发光": "glowing",
     "体积光": "volumetric lighting",
+    "暗调": "dark, dim lighting", "高对比": "high contrast",
+    "低饱和": "muted color", "高饱和": "saturated",
+    "金色时光": "golden hour", "蓝色时刻": "blue hour",
+    "窗光": "window light", "舞台光": "stage lights",
 
     # ---- 体型 ----
     "巨乳": "large breasts", "大胸": "large breasts",
@@ -152,25 +341,111 @@ LEXICON = {
     "曲线": "curvy figure", "纤细": "slender", "苗条": "slim",
     "丰满": "plump", "肌肉": "muscular", "健壮": "muscular",
     "长腿": "long legs", "细腰": "narrow waist",
+    "娇小": "petite", "高挑": "tall",
+    "尖耳朵": "pointy ears", "虎牙": "fang",
 
     # ---- 画质与风格 ----
+    "虚幻引擎5渲染": "unreal engine 5, realistic",
+    "虚幻引擎": "unreal engine, realistic",
+    "日系水彩透明感": "watercolor, translucent, anime coloring",
+    "水彩透明": "watercolor, translucent",
+    "厚涂油画": "oil painting, impasto",
     "高清": "highres", "超清": "ultra-detailed", "精致": "detailed",
     "水彩风": "watercolor", "油画风": "oil painting", "素描": "sketch",
     "赛璐璐": "cel shading", "厚涂": "impasto", "线稿": "lineart",
     "黑白": "monochrome", "单色": "monochrome", "复古风": "retro artstyle",
+    "日系": "anime coloring", "厚涂风": "impasto, painterly",
+    "写实": "realistic", "半写实": "semi-realistic",
+    "像素风": "pixel art", "剪纸风": "paper cutout",
+    "水墨": "ink wash painting, chinese style",
+    "工笔": "gongbi, chinese style",
+    "扁平色块": "flat color", "极简": "minimalism",
+    "华丽": "ornate, detailed",
+    "复古": "retro artstyle",
+    "蒸汽朋克": "steampunk",
+    "暗黑": "dark, dark theme",
+    "神圣": "holy, glowing",
+    "中式": "chinese style",
+    "中国风": "chinese style",
+    "日式": "japanese clothes",
+    "和风": "japanese clothes",
+    "西洋": "western",
+    "维多利亚": "victorian",
+
+    # ---- 构图补全 ----
+    "上半身": "upper body", "下半身": "lower body",
+    "头像": "portrait", "肖像": "portrait",
+    "过肩": "over shoulder",
+
+    # ---- 科幻与氛围补全 ----
+    "星际指挥官少女": "1girl, commander, sci-fi",
+    "星际指挥官": "commander, sci-fi",
+    "星际": "space, sci-fi",
+    "高科技": "high-tech, sci-fi",
+    "光辉": "glowing, light rays",
+    "极光": "aurora",
+    "银河": "milky way, starry sky",
+    "月亮": "moon", "太阳": "sun", "星星": "stars",
+    "云海": "sea of clouds", "悬崖": "cliff",
+    "火焰": "fire", "冰": "ice", "雷电": "lightning",
+    "闪电": "lightning", "烟雾": "smoke",
+    "花瓣": "petals", "落花": "falling petals",
+    "飘雪": "snowing", "粒子": "particles",
+    "魔法阵": "magic circle", "符文": "runes",
+    "背景": "background", "细节": "detailed",
+
+    # ---- 服装与身体补全 ----
+    "超短裙": "miniskirt", "迷你裙": "miniskirt",
+    "包臀裙": "pencil skirt", "西装裙": "pencil skirt, suit",
+    "职业装": "business suit", "无袖": "sleeveless",
+    "短袖": "short sleeves", "长袖": "long sleeves",
+    "高领": "turtleneck", "低胸": "cleavage",
+    "露脐": "navel", "锁骨": "collarbone",
+    "裸肩": "bare shoulders", "裸背": "bare back",
+    "绝对领域": "zettai ryouiki",
+    "美腿": "long legs, thighs",
+    "爆乳": "huge breasts", "乳沟": "cleavage",
+    "湿身": "wet, wet clothes", "透视": "see-through",
+    "开襟": "open clothes",
 
     # ---- 独立颜色词 ----
-    # 置于词典末尾，因按键长度倒序匹配，「黑发」「黑丝」等复合词会先命中，
+    # 置于词典末尾，因最长匹配会先吃掉「黑发」「黑丝」等复合词，
     # 此处仅接管「黑旗袍」这类未组合成固定词条的散落颜色描述。
     "黑色": "black", "白色": "white", "红色": "red", "蓝色": "blue",
     "绿色": "green", "紫色": "purple", "黄色": "yellow", "粉色": "pink",
     "橙色": "orange", "灰色": "grey", "金色": "gold", "银色": "silver",
+    "青色": "teal", "棕色": "brown", "透明": "transparent",
+    "黑金": "black, gold", "幽蓝": "blue theme, dark blue",
     "黑": "black", "白": "white", "红": "red", "蓝": "blue",
     "绿": "green", "紫": "purple", "粉": "pink", "灰": "grey",
+    "金": "gold", "银": "silver",
 }
 
-# 按键长度倒序，优先匹配长词，避免「长发」被「发」截断
+# 口语虚词、量词和语法残片，命中后不进入残留，也不送给 LLM。
+STOPWORDS = {
+    "一个", "一位", "一名", "一只", "一件", "一条", "一顶", "一双",
+    "一把", "一根", "一张", "一幅", "一些", "一点", "有点", "有些",
+    "那种", "这种", "那个", "这个", "那里", "这里", "其中",
+    "然后", "而且", "但是", "因为", "所以", "如果", "的话",
+    "非常", "特别", "十分", "有点", "稍微", "比较",
+    "以及", "或者", "还是", "正在", "已经", "一下",
+    "她的", "他的", "它的", "我的", "你的",
+    "的", "了", "着", "过", "在", "里", "中", "内",
+    "和", "与", "及", "并", "又", "也", "很",
+    "把", "被", "给", "让", "向", "从", "到", "对", "用",
+    "就", "还", "都", "而", "但", "或", "如", "比",
+    "得", "地", "吗", "呢", "吧", "啊", "呀", "哦", "哈",
+    "这", "那", "个", "些", "们", "你", "我", "他", "她", "它",
+    "其", "所", "是", "有", "会", "能", "要", "去", "来",
+    "上", "下", "前", "后", "左", "右",
+    "穿", "戴", "拿", "看", "带",
+}
+
 _SORTED_KEYS = sorted(LEXICON.keys(), key=len, reverse=True)
+_KEYS_BY_FIRST = defaultdict(list)
+for _key in _SORTED_KEYS:
+    _KEYS_BY_FIRST[_key[0]].append(_key)
+_SORTED_STOPWORDS = sorted(STOPWORDS, key=len, reverse=True)
 
 LLM_INSTRUCTION = (
     "你是 danbooru 标签转换器。把用户的中文画面描述转成英文 danbooru 标签。\n"
@@ -181,8 +456,9 @@ LLM_INSTRUCTION = (
     "4. 不要输出括号权重符号（如 {{ }} 或 [ ]）。\n"
     "5. 若描述里有人数，务必保留 1girl 或 1boy 这类标签。\n"
     "6. 控制在 25 个标签以内。\n"
-    "7. 描述中的颜色、服装、发型、表情、姿势都要转换，不要遗漏。\n"
-    "8. 不要输出 NSFW 相关的露骨标签。\n\n"
+    "7. 颜色、服装、发型、表情、姿势、构图、道具、场景都要转换，不要遗漏。\n"
+    "8. 武器要写成具体标签，例如 katana、guandao、spear，不要只写 weapon。\n"
+    "9. 不要输出 NSFW 相关的露骨标签。\n\n"
     "示例：\n"
     "中文描述：一个穿白色连衣裙的长发女孩站在花田里\n"
     "标签：1girl, solo, long hair, white dress, standing, flower field, outdoors\n\n"
@@ -190,6 +466,8 @@ LLM_INSTRUCTION = (
     "标签：1girl, black hair, red eyes, sitting, classroom, looking out window, school uniform, indoors\n\n"
     "中文描述：金发双马尾女孩在海边比基尼，夕阳逆光\n"
     "标签：1girl, blonde hair, twintails, beach, bikini, sunset, backlighting, ocean\n\n"
+    "中文描述：手持青龙偃月刀的银发女性，全身，废墟\n"
+    "标签：1girl, silver hair, holding, guandao, full body, ruins\n\n"
     "中文描述：{text}\n"
     "标签："
 )
@@ -200,23 +478,66 @@ def contains_chinese(text):
     return bool(re.search(r"[一-鿿]", str(text or "")))
 
 
+def _dedupe_tags(*chunks):
+    """按首次出现顺序合并多段标签，忽略大小写重复。"""
+    tags = []
+    seen = set()
+    for chunk in chunks:
+        if not chunk:
+            continue
+        for tag in str(chunk).split(","):
+            tag = tag.strip()
+            normalized = tag.lower()
+            if tag and normalized not in seen:
+                seen.add(normalized)
+                tags.append(tag)
+    return tags
+
+
+def _strip_stopwords(text):
+    """从残留中文里去掉语法虚词，只留下可能有画面意义的片段。"""
+    remaining = str(text or "")
+    for word in _SORTED_STOPWORDS:
+        if word in remaining:
+            remaining = remaining.replace(word, ",")
+    parts = [part for part in re.findall(r"[一-鿿]+", remaining) if part]
+    return " ".join(parts)
+
+
 def translate_by_lexicon(text):
     """用词典替换中文片段，返回 (标签串, 未识别的中文残留)。
 
-    命中的键会从原文中移除，剩余中文即词典未覆盖的部分；输入中原有的
-    英文标签会一并保留，避免中英混写时丢失用户已经写好的标签。
+    从左到右取最长键，命中后继续扫描后续文字。输入中原有的英文标签会一并
+    保留，避免中英混写时丢失用户已经写好的标签。
     """
     remaining = str(text or "")
     matched = []
-    for key in _SORTED_KEYS:
-        if key in remaining:
-            matched.append(LEXICON[key])
-            # 用分隔符占位，避免相邻英文片段在移除中文后粘成一个错误标签。
-            remaining = remaining.replace(key, ",")
+    rebuilt = []
+    index = 0
+    length = len(remaining)
+    while index < length:
+        current = remaining[index]
+        hit = None
+        for key in _KEYS_BY_FIRST.get(current, ()):
+            if remaining.startswith(key, index):
+                hit = key
+                break
+        if hit:
+            matched.append(LEXICON[hit])
+            rebuilt.append(",")
+            index += len(hit)
+            continue
+        rebuilt.append(current)
+        index += 1
+
+    leftover_source = "".join(rebuilt)
+    leftover_cn = _strip_stopwords(
+        "".join(re.findall(r"[一-鿿]+", leftover_source))
+    )
 
     # 去掉未识别中文，仅提取用户原本写入的英文标签。中文标点和换行都视为
     # 标签分隔符，ASCII 冒号保留给 artist:xxx 与 NAI 数值权重语法。
-    english_text = re.sub(r"[一-鿿]+", ",", remaining)
+    english_text = re.sub(r"[一-鿿]+", ",", leftover_source)
     english_text = re.sub(r"[，、。；;：！!？?\r\n\t]+", ",", english_text)
     existing = [
         part.strip()
@@ -224,19 +545,7 @@ def translate_by_lexicon(text):
         if part.strip() and re.search(r"[a-z0-9]", part, re.I)
     ]
 
-    # 去重并保持首次出现顺序
-    tags = []
-    seen = set()
-    for chunk in (*matched, *existing):
-        for tag in chunk.split(","):
-            tag = tag.strip()
-            normalized = tag.lower()
-            if tag and normalized not in seen:
-                seen.add(normalized)
-                tags.append(tag)
-
-    # 只提取连续中文片段，避免无空格混写时把两侧英文一起交给 LLM。
-    leftover_cn = " ".join(re.findall(r"[一-鿿]+", remaining))
+    tags = _dedupe_tags(*matched, *existing)
     return ", ".join(tags), leftover_cn
 
 
@@ -327,8 +636,8 @@ def _sanitize_llm_output(raw):
 async def to_tags(context, text, use_llm=True):
     """把用户输入转为标签串，返回 (标签, 说明)。
 
-    纯英文输入直接返回；中文优先交 LLM 整句翻译（上下文完整、质量高）；
-    LLM 不可用时降级为词典匹配。
+    纯英文输入直接返回。中文先走词典最长匹配；若仍有画面意义的残留，
+    再把整句交给 LLM，并与词典结果合并，避免 LLM 漏掉已经稳定命中的词。
     """
     raw = str(text or "").strip()
     if not raw:
@@ -337,14 +646,14 @@ async def to_tags(context, text, use_llm=True):
     if not contains_chinese(raw):
         return raw, ""
 
-    # LLM 优先：整句交给 LLM，保留完整上下文，翻译更准确
-    if use_llm:
+    lexicon_tags, leftover = translate_by_lexicon(raw)
+
+    if use_llm and leftover:
         llm_tags = await translate_by_llm(context, raw)
         if llm_tags:
-            return llm_tags, "已智能翻译"
+            merged = ", ".join(_dedupe_tags(lexicon_tags, llm_tags))
+            return merged, "已智能翻译"
 
-    # 降级：词典匹配，残留部分忽略
-    lexicon_tags, leftover = translate_by_lexicon(raw)
     if leftover and lexicon_tags:
         return lexicon_tags, f"未识别部分已忽略：{leftover}"
     if not lexicon_tags:

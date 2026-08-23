@@ -1,7 +1,7 @@
 """中文转标签模块的单元测试。
 
-覆盖词典命中、长词优先、去重、残留识别、LLM 输出清洗与降级路径。
-LLM 部分用桩对象模拟，不产生真实网络请求。
+覆盖词典命中、长词优先、去重、虚词剥离、残留识别、词典与 LLM 合并、
+LLM 输出清洗与降级路径。LLM 部分用桩对象模拟，不产生真实网络请求。
 """
 
 import asyncio
@@ -22,6 +22,7 @@ sys.modules.setdefault("astrbot", _fake_root)
 sys.modules.setdefault("astrbot.api", _fake_api)
 
 from translator import (  # noqa: E402
+    LEXICON,
     _sanitize_llm_output,
     contains_chinese,
     to_tags,
@@ -92,22 +93,36 @@ def test_lexicon():
     tags, _ = translate_by_lexicon("女孩 少女 女生")
     check(tags.count("1girl") == 1, "重复标签去重")
 
-    # 残留识别
-    tags, leftover = translate_by_lexicon("长发女孩，拿着一把青龙偃月刀")
-    check("long hair" in tags, "混合输入仍命中已知词")
-    check("青龙偃月刀" in leftover, "未知中文进入残留")
+    # 残留识别：使用确定未收录的词，避免后续扩词把用例打穿
+    tags, leftover = translate_by_lexicon("长发女孩，拿着一把量子纠缠矩阵")
+    check("long hair" in tags and "holding" in tags, "混合输入仍命中已知词")
+    check("量子纠缠矩阵" in leftover, "未知中文进入残留")
+    check("一把" not in leftover and leftover.find("着") < 0, "量词和虚词不进入残留")
 
     tags, leftover = translate_by_lexicon("1girl, 长发, blue eyes")
     check("1girl" in tags and "blue eyes" in tags, "中英混写保留原有英文标签")
     check("long hair" in tags and leftover == "", "中英混写仍翻译已知中文")
 
-    tags, leftover = translate_by_lexicon("1girl 青龙偃月刀 blue eyes")
+    tags, leftover = translate_by_lexicon("1girl 量子纠缠矩阵 blue eyes")
     check("1girl" in tags and "blue eyes" in tags, "未知中文不吞掉两侧英文标签")
-    check("青龙偃月刀" in leftover, "中英混写保留未知中文残留")
+    check("量子纠缠矩阵" in leftover, "中英混写保留未知中文残留")
 
-    tags, leftover = translate_by_lexicon("1girl青龙偃月刀blue eyes")
+    tags, leftover = translate_by_lexicon("1girl量子纠缠矩阵blue eyes")
     check("1girl" in tags and "blue eyes" in tags, "无空格混写仍保留英文标签")
-    check(leftover == "青龙偃月刀", "无空格混写只提取中文残留")
+    check(leftover == "量子纠缠矩阵", "无空格混写只提取中文残留")
+
+    tags, leftover = translate_by_lexicon("长发女孩拿着一把青龙偃月刀")
+    check("guandao" in tags and "holding" in tags, "青龙偃月刀 命中武器标签")
+    check(leftover == "", "已知武器和虚词不进入残留")
+
+    tags, leftover = translate_by_lexicon("一个穿白色连衣裙的长发女孩站在花田里")
+    check("white dress" in tags and "flower field" in tags, "口语长句命中服装和场景")
+    check(leftover == "", "口语虚词被剥离后无残留")
+
+    tags, leftover = translate_by_lexicon("全身，从侧面，雨夜街道，风衣")
+    check("full body" in tags and "from side" in tags, "构图词命中")
+    check("night" in tags and "rain" in tags and "trench coat" in tags, "雨夜街道与风衣命中")
+    check(leftover == "", "构图口语无残留")
 
     # 标点不应进入残留
     _, leftover = translate_by_lexicon("长发，女孩。")
@@ -115,6 +130,7 @@ def test_lexicon():
 
     tags, leftover = translate_by_lexicon("")
     check(tags == "" and leftover == "", "空输入安全")
+    check(len(LEXICON) >= 500, "词典覆盖常用绘画描述")
 
 
 def test_sanitize():
@@ -165,36 +181,47 @@ def test_to_tags():
         check("long hair" in tags and "1girl" in tags, "词典全命中")
 
         # 词典未覆盖 + LLM 关闭
-        tags, note = await to_tags(None, "长发女孩拿着青龙偃月刀", use_llm=False)
+        tags, note = await to_tags(None, "长发女孩拿着量子纠缠矩阵", use_llm=False)
         check("long hair" in tags, "保留词典命中部分")
-        check("忽略" in note, "提示未识别部分被忽略")
+        check("忽略" in note and "量子纠缠矩阵" in note, "提示未识别部分被忽略")
 
-        # LLM 成功：整句翻译，返回完整标签
-        ctx = FakeContext(FakeProvider(reply="1girl, long hair, holding, weapon"))
-        tags, note = await to_tags(ctx, "长发女孩拿着青龙偃月刀", use_llm=True)
-        check("1girl" in tags and "long hair" in tags, "LLM 整句翻译返回完整标签")
-        check("weapon" in tags, "LLM 结果包含武器标签")
+        # 词典已覆盖时不调用 LLM，避免把稳定结果换成模型胡写
+        class GuardProvider(FakeProvider):
+            async def text_chat(self, prompt=""):
+                raise AssertionError("词典已覆盖时不应调用 LLM")
+
+        ctx = FakeContext(GuardProvider(reply="should not run"))
+        tags, note = await to_tags(ctx, "长发女孩拿着一把青龙偃月刀", use_llm=True)
+        check("guandao" in tags and "1girl" in tags, "已知中文整句走词典")
+        check(note == "", "无残留时不提示智能翻译")
+
+        # LLM 成功：补上词典未覆盖的部分，并与词典结果合并
+        ctx = FakeContext(FakeProvider(reply="1girl, long hair, holding, quantum matrix"))
+        tags, note = await to_tags(ctx, "长发女孩拿着量子纠缠矩阵", use_llm=True)
+        check("1girl" in tags and "long hair" in tags, "合并后仍保留词典标签")
+        check("holding" in tags, "词典动作标签不被 LLM 覆盖掉")
+        check("quantum matrix" in tags, "LLM 结果补上未知词")
         check("智能翻译" in note, "提示已智能翻译")
 
         # LLM 故障时降级
         ctx = FakeContext(FakeProvider(raise_error=True))
-        tags, note = await to_tags(ctx, "长发女孩拿着青龙偃月刀", use_llm=True)
+        tags, note = await to_tags(ctx, "长发女孩拿着量子纠缠矩阵", use_llm=True)
         check("long hair" in tags, "LLM 故障仍返回词典结果")
         check("忽略" in note, "降级后给出提示")
 
         # 无 provider
         ctx = FakeContext(None)
-        tags, note = await to_tags(ctx, "长发女孩拿着青龙偃月刀", use_llm=True)
+        tags, note = await to_tags(ctx, "长发女孩拿着量子纠缠矩阵", use_llm=True)
         check("long hair" in tags, "无 provider 仍可用词典")
 
         # 完全无法识别
-        tags, note = await to_tags(None, "青龙偃月刀", use_llm=False)
+        tags, note = await to_tags(None, "量子纠缠矩阵", use_llm=False)
         check(tags == "", "全未识别时不把原始中文送给 NAI")
         check("建议" in note, "全未识别时给出建议")
 
         # 未知中文和英文并存时保留可用英文
         tags, note = await to_tags(
-            None, "1girl, 青龙偃月刀, blue eyes", use_llm=False
+            None, "1girl, 量子纠缠矩阵, blue eyes", use_llm=False
         )
         check("1girl" in tags and "blue eyes" in tags, "混合输入保留可用英文")
         check("忽略" in note, "混合输入提示未知中文已忽略")

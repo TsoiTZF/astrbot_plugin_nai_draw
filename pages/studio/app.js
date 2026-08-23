@@ -1,5 +1,5 @@
 /**
- * 绘台 (Studio) - 黑金奢感高定核心驱动
+ * 绘台 (Studio) - 硬件工坊高定驱动系统 (Machined Console)
  * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
@@ -94,7 +94,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-gold-pill"),
+  artistChips: document.querySelectorAll(".artist-metal-pill"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -129,8 +129,8 @@ const els = {
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
   // 导航
-  tabs: document.querySelectorAll(".segment-btn"),
-  tabPanels: document.querySelectorAll(".view-panel-tab"),
+  tabs: document.querySelectorAll(".segment-key"),
+  tabPanels: document.querySelectorAll(".viewport-pane"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -169,12 +169,12 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `royal-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `machined-toast-bezel ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     els.toast.hidden = true;
-  }, 4200);
+  }, 4000);
 }
 
 function setBusy(busy) {
@@ -299,7 +299,7 @@ function renderGallery(items) {
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-sub-spec";
+    emptyNotice.className = "vault-specs-label";
     emptyNotice.textContent = "档案库暂无历史成图。在左侧描述画面后点击渲染即可自动归档。";
     els.gallery.appendChild(emptyNotice);
     return;
@@ -380,7 +380,7 @@ function renderCovers(items) {
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-sub-spec";
+    emptyNotice.className = "vault-specs-label";
     emptyNotice.textContent = "载体库暂无图片。拖拽图片至上方磁吸区或点击上传。";
     els.covers.appendChild(emptyNotice);
     return;
@@ -485,8 +485,8 @@ async function bootstrap() {
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
 
-    els.apiStatus.textContent = state.configured ? "服务就绪" : "未配置密钥";
-    els.statusDot.className = `beacon-pulse ${state.configured ? "ready" : "error"}`;
+    els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
+    els.statusDot.className = `status-led-indicator ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -502,8 +502,8 @@ async function bootstrap() {
     const activeSizeObj = state.sizes.find((s) => s.key === state.size);
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
-    els.apiStatus.textContent = "未连接";
-    els.statusDot.className = "beacon-pulse error";
+    els.apiStatus.textContent = "OFFLINE";
+    els.statusDot.className = "status-led-indicator error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -524,14 +524,14 @@ function setupEventListeners() {
       const idx = Math.floor(Math.random() * SAMPLES.length);
       els.prompt.value = SAMPLES[idx];
       els.prompt.focus();
-      showToast("已注入精美灵感画面！");
+      showToast("已注入精选灵感画面！");
     });
   }
 
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".tag-gold-chip");
+      const tag = e.target.closest(".metal-tag-chip");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;

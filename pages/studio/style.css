@@ -1,32 +1,31 @@
 /**
- * 绘台 (Studio) - 硬件工坊高定控制台设计系统 (Machined Hardware Console)
- * 极致精美升级：
- * 1. 0.5px 精密金属倒角高光与深邃黑曜石质感
- * 2. 预设微型艺术色板与画幅比例线框
- * 3. 巨幕成图、提示词工程透视与近期历史画廊档案胶卷整合
- * 4. 完美支持全屏灯箱无损放大查看
+ * 绘台 (Studio) - 劳力士级黑金高定控制台设计系统 (Rolex Obsidian & Imperial Pale Gold)
+ * 色彩哲学：
+ * 彻底消除廉价橙黄与刺眼赤橙！
+ * 采用正统奢华【香槟浅金 #f3e5ab】与【典雅烫金 #c5a059】
+ * 配合纯正玄黑丝绒黑曜石 (#0a0a0c) 与 0.5px CNC 金属精密倒角高光
  */
 
 :root,
 [data-theme="dark"] {
-  /* 基础底色：丝绒深炭黑，告别一切廉价泛灰 */
-  --bg-app-void: #09090b;
-  --bg-topbar: rgba(14, 14, 18, 0.92);
-  --bg-dock: rgba(16, 17, 22, 0.92);
-  --bg-card: rgba(22, 24, 32, 0.75);
-  --bg-card-hover: rgba(30, 33, 44, 0.95);
-  --bg-card-active: #1e2230;
-  --bg-well: #0b0c10;
-  --bg-theater: #040507;
-  --bg-subbar: rgba(0, 0, 0, 0.4);
+  /* 基础底色：丝绒玄黑黑曜石纯黑，深沉内敛 */
+  --bg-app-void: #0a0a0c;
+  --bg-topbar: rgba(15, 15, 18, 0.94);
+  --bg-dock: rgba(17, 17, 21, 0.94);
+  --bg-card: rgba(23, 23, 29, 0.78);
+  --bg-card-hover: rgba(30, 31, 39, 0.95);
+  --bg-card-active: #1f202a;
+  --bg-well: #0c0d10;
+  --bg-theater: #050507;
+  --bg-subbar: rgba(0, 0, 0, 0.45);
 
-  /* 0.5px CNC 金属倒角与香槟金/冷银高光丝线 */
-  --bevel-subtle: rgba(255, 255, 255, 0.08);
-  --bevel-medium: rgba(255, 255, 255, 0.15);
-  --bevel-gold: rgba(245, 158, 11, 0.35);
-  --bevel-gold-active: #f59e0b;
-  --specular-chamfer: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --specular-gold: inset 0 1px 0 rgba(251, 191, 36, 0.35), inset 0 0 0 1px rgba(217, 119, 6, 0.3);
+  /* 0.5px CNC 金属倒角与纯正冷银/香槟金高光线 */
+  --bevel-subtle: rgba(255, 255, 255, 0.07);
+  --bevel-medium: rgba(197, 160, 89, 0.25);
+  --bevel-gold: rgba(197, 160, 89, 0.4);
+  --bevel-gold-active: #c5a059;
+  --specular-chamfer: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --specular-gold: inset 0 1px 0 rgba(243, 229, 171, 0.35), inset 0 0 0 1px rgba(140, 109, 50, 0.3);
 
   /* 文字梯队 */
   --text-pure: #ffffff;
@@ -34,17 +33,18 @@
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
 
-  /* 核心仪器琥珀香槟金微光 */
-  --gold-primary: #d97706;
-  --gold-bright: #fbbf24;
-  --gold-subtle: rgba(245, 158, 11, 0.12);
-  --gold-glow: rgba(245, 158, 11, 0.35);
+  /* 核心尊贵香槟纯金与烫金 (True Champagne Gold & Imperial Gilded) - 绝无橙色！ */
+  --gold-primary: #c5a059;
+  --gold-bright: #f3e5ab;
+  --gold-dark: #8c6d32;
+  --gold-subtle: rgba(197, 160, 89, 0.12);
+  --gold-glow: rgba(197, 160, 89, 0.3);
 
-  /* 实体点火按钮重金属材质 */
-  --btn-heavy-bg: linear-gradient(180deg, #2a2e39 0%, #171a21 50%, #101217 100%);
-  --btn-heavy-hover: linear-gradient(180deg, #373d4b 0%, #20242e 50%, #14171d 100%);
-  --btn-heavy-border: rgba(255, 255, 255, 0.22);
-  --btn-heavy-shadow: 0 6px 24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.5);
+  /* 实体点火按钮重金属材质：玄黑与烫金暗影渐变 */
+  --btn-heavy-bg: linear-gradient(180deg, #27282f 0%, #16171d 50%, #0d0e12 100%);
+  --btn-heavy-hover: linear-gradient(180deg, #33353e 0%, #1e2027 50%, #131419 100%);
+  --btn-heavy-border: rgba(197, 160, 89, 0.35);
+  --btn-heavy-shadow: 0 6px 24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(243, 229, 171, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.6);
 
   /* 状态指示 */
   --status-live: #10b981;
@@ -57,42 +57,43 @@
   --shadow-dock: 0 16px 40px rgba(0, 0, 0, 0.7);
   --shadow-card: 0 4px 18px rgba(0, 0, 0, 0.45);
 
-  --ambient-opacity: 0.25;
+  --ambient-opacity: 0.18;
 }
 
 [data-theme="light"] {
-  /* 浅色模式：象牙冷瓷压铸机壳与沉香精金倒角，所有框体 100% 自动变色 */
-  --bg-app-void: #f7f6f3;
-  --bg-topbar: rgba(255, 255, 255, 0.94);
+  /* 浅色模式：象牙冷瓷压铸机壳与沉香金倒角，所有框体 100% 自动变色 */
+  --bg-app-void: #f7f6f2;
+  --bg-topbar: rgba(255, 255, 255, 0.95);
   --bg-dock: rgba(255, 255, 255, 0.9);
   --bg-card: rgba(255, 255, 255, 0.88);
   --bg-card-hover: #ffffff;
   --bg-card-active: #ffffff;
   --bg-well: #ffffff;
-  --bg-theater: #eae7df;
-  --bg-subbar: rgba(244, 241, 235, 0.85);
+  --bg-theater: #ece8e1;
+  --bg-subbar: rgba(244, 240, 232, 0.85);
 
   --bevel-subtle: rgba(0, 0, 0, 0.08);
-  --bevel-medium: rgba(0, 0, 0, 0.15);
-  --bevel-gold: rgba(180, 83, 9, 0.25);
-  --bevel-gold-active: #b45309;
+  --bevel-medium: rgba(140, 109, 50, 0.25);
+  --bevel-gold: rgba(140, 109, 50, 0.35);
+  --bevel-gold-active: #8c6d32;
   --specular-chamfer: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --specular-gold: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(180, 83, 9, 0.3);
+  --specular-gold: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(140, 109, 50, 0.3);
 
   --text-pure: #18181b;
   --text-primary: #27272a;
   --text-secondary: #52525b;
   --text-muted: #71717a;
 
-  --gold-primary: #b45309;
-  --gold-bright: #d97706;
-  --gold-subtle: rgba(180, 83, 9, 0.1);
-  --gold-glow: rgba(180, 83, 9, 0.2);
+  --gold-primary: #8c6d32;
+  --gold-bright: #b89345;
+  --gold-dark: #5c471e;
+  --gold-subtle: rgba(140, 109, 50, 0.1);
+  --gold-glow: rgba(140, 109, 50, 0.25);
 
-  --btn-heavy-bg: linear-gradient(180deg, #27272a 0%, #18181b 100%);
-  --btn-heavy-hover: linear-gradient(180deg, #3f3f46 0%, #27272a 100%);
-  --btn-heavy-border: rgba(0, 0, 0, 0.25);
-  --btn-heavy-shadow: 0 4px 18px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --btn-heavy-bg: linear-gradient(180deg, #2a2723 0%, #191815 100%);
+  --btn-heavy-hover: linear-gradient(180deg, #3d3934 0%, #2a2723 100%);
+  --btn-heavy-border: rgba(140, 109, 50, 0.4);
+  --btn-heavy-shadow: 0 4px 18px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 
   --status-live: #059669;
   --status-live-bg: #d1fae5;
@@ -135,13 +136,13 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 作者样式里的 display:flex 会盖掉 UA 的 hidden，灯箱会整页黑遮罩 */
+/* 彻底保证 hidden 属性优先级 */
 [hidden] {
   display: none !important;
 }
 
-/* 背景流光氛围层 */
-.app-ambient-glow {
+/* 背景纯正黑金微光氛围层 (优雅香槟金，无橙色) */
+.studio-ambient-layer {
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -149,7 +150,7 @@ html, body {
   z-index: 0;
 }
 
-.glow-orb {
+.ambient-glow {
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
@@ -157,20 +158,20 @@ html, body {
   animation: orb-drift 28s infinite alternate ease-in-out;
 }
 
-.orb-1 {
+.glow-top {
   top: -140px;
   left: 25%;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(217, 119, 6, 0.25) 0%, rgba(251, 191, 36, 0.08) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(197, 160, 89, 0.22) 0%, rgba(243, 229, 171, 0.08) 50%, transparent 70%);
 }
 
-.orb-2 {
+.glow-bottom {
   bottom: -160px;
   right: 15%;
   width: 580px;
   height: 580px;
-  background: radial-gradient(circle, rgba(180, 83, 9, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(140, 109, 50, 0.18) 0%, transparent 70%);
   animation-duration: 32s;
 }
 
@@ -180,7 +181,7 @@ html, body {
 }
 
 /* 顶层视口容器 */
-.app-viewport-root {
+.studio-app-root {
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -190,6 +191,7 @@ html, body {
 }
 
 /* ================= 顶层高定导航栏 ================= */
+.studio-topbar,
 .studio-navbar {
   height: 52px;
   background: var(--bg-topbar);
@@ -204,17 +206,17 @@ html, body {
   flex-shrink: 0;
 }
 
-.navbar-brand-col {
+.topbar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.brand-badge-box {
+.brand-crest {
   width: 30px;
   height: 30px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, #232733 0%, #11131a 100%);
+  background: linear-gradient(135deg, #22232a 0%, #0e0f14 100%);
   border: 1px solid var(--bevel-medium);
   box-shadow: var(--specular-chamfer), 0 0 14px var(--gold-glow);
   display: flex;
@@ -222,19 +224,19 @@ html, body {
   justify-content: center;
 }
 
-.brand-logo-spark {
+.crest-spark {
   color: var(--gold-bright);
   font-size: 15px;
   filter: drop-shadow(0 0 4px var(--gold-glow));
 }
 
-.brand-title-wrap {
+.brand-text {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.brand-title {
+.brand-name {
   font-weight: 800;
   font-size: 14.5px;
   letter-spacing: 0.04em;
@@ -242,7 +244,7 @@ html, body {
   margin: 0;
 }
 
-.brand-version-tag {
+.brand-badge {
   font-size: 9px;
   font-family: var(--font-mono);
   color: var(--gold-bright);
@@ -254,7 +256,7 @@ html, body {
   letter-spacing: 0.06em;
 }
 
-.service-status-pill {
+.telemetry-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -264,7 +266,7 @@ html, body {
   border-radius: var(--radius-pill);
 }
 
-.status-indicator-dot {
+.status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -272,12 +274,12 @@ html, body {
   box-shadow: 0 0 8px var(--status-live);
 }
 
-.status-indicator-dot.error {
+.status-dot.error {
   background: var(--status-error);
   box-shadow: 0 0 8px var(--status-error);
 }
 
-.status-indicator-text {
+.status-text {
   font-size: 10px;
   font-family: var(--font-mono);
   font-weight: 600;
@@ -286,7 +288,7 @@ html, body {
 }
 
 /* 顶栏模式选项卡 */
-.navbar-tab-menu {
+.topbar-tabs {
   display: flex;
   background: var(--bg-well);
   border: 1px solid var(--bevel-subtle);
@@ -296,7 +298,7 @@ html, body {
   gap: 2px;
 }
 
-.nav-menu-btn {
+.tab-btn {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-secondary);
@@ -311,23 +313,23 @@ html, body {
   transition: all 0.15s ease;
 }
 
-.menu-svg {
+.tab-icon {
   width: 14px;
   height: 14px;
 }
 
-.nav-menu-btn:hover {
+.tab-btn:hover {
   color: var(--text-pure);
 }
 
-.nav-menu-btn.active {
+.tab-btn.active {
   background: var(--bg-card-active);
   color: var(--text-pure);
-  border-color: var(--bevel-medium);
+  border-color: var(--bevel-gold);
   box-shadow: var(--specular-chamfer), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-.menu-count-badge {
+.tab-badge {
   font-size: 10px;
   font-family: var(--font-mono);
   background: var(--bevel-subtle);
@@ -336,17 +338,17 @@ html, body {
   border-radius: 2px;
 }
 
-.nav-menu-btn.active .menu-count-badge {
+.tab-btn.active .tab-badge {
   background: var(--gold-subtle);
   color: var(--gold-bright);
 }
 
-.navbar-actions-col {
+.topbar-actions {
   display: flex;
   align-items: center;
 }
 
-.theme-switch-btn {
+.theme-toggle-btn {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
@@ -366,32 +368,32 @@ html, body {
   height: 15px;
 }
 
-.theme-switch-btn:hover {
+.theme-toggle-btn:hover {
   color: var(--gold-bright);
-  border-color: var(--bevel-medium);
+  border-color: var(--bevel-gold);
 }
 
 /* ================= 主体内容区 ================= */
-.studio-content-body {
+.studio-main-body {
   flex: 1;
   height: calc(100vh - 52px);
   overflow: hidden;
   position: relative;
 }
 
-.view-mode-panel {
+.studio-mode-pane {
   width: 100%;
   height: 100%;
   overflow: hidden;
   display: none;
 }
 
-.view-mode-panel.active {
+.studio-mode-pane.active {
   display: block;
 }
 
 /* 模式 1：双栏创作工坊 (Studio 主布局) */
-.workbench-layout-grid {
+.studio-layout-columns {
   display: grid;
   grid-template-columns: 410px minmax(0, 1fr);
   height: 100%;
@@ -399,7 +401,7 @@ html, body {
 }
 
 /* ---------------- 左侧参数面板 (Composer Sidebar) ---------------- */
-.composer-sidebar-panel {
+.panel-composer {
   background: var(--bg-dock);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -410,22 +412,22 @@ html, body {
   scrollbar-color: var(--bevel-subtle) transparent;
 }
 
-.composer-sidebar-panel::-webkit-scrollbar {
+.panel-composer::-webkit-scrollbar {
   width: 4px;
 }
-.composer-sidebar-panel::-webkit-scrollbar-thumb {
+.panel-composer::-webkit-scrollbar-thumb {
   background: var(--bevel-subtle);
   border-radius: var(--radius-pill);
 }
 
-.composer-form-container {
+.form-composer-stack {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-/* 精密模块卡片 */
-.ui-panel-card {
+/* 精密黑金模块卡片 */
+.form-card {
   background: var(--bg-card);
   border: 1px solid var(--bevel-subtle);
   box-shadow: var(--specular-chamfer), var(--shadow-card);
@@ -437,13 +439,13 @@ html, body {
   transition: border-color 0.18s, background-color 0.18s;
 }
 
-.card-head-row {
+.card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.card-head-title {
+.card-title {
   font-size: 11.5px;
   font-weight: 700;
   color: var(--text-primary);
@@ -454,19 +456,13 @@ html, body {
   text-transform: uppercase;
 }
 
-.gold-spark {
-  color: var(--gold-bright);
-  font-size: 13px;
-  filter: drop-shadow(0 0 4px var(--gold-glow));
-}
-
-.card-head-links {
+.card-head-tools {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.action-ghost-btn {
+.tool-link-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -485,23 +481,23 @@ html, body {
   height: 12px;
 }
 
-.action-ghost-btn:hover {
+.tool-link-btn:hover {
   color: var(--gold-bright);
 }
 
-.badge-active-val {
+.active-preset-badge {
   font-size: 11px;
   font-weight: 700;
   color: var(--gold-bright);
 }
 
-.card-head-hint {
+.hint-caption {
   font-size: 10px;
   color: var(--text-muted);
 }
 
 /* 提示词输入框凹槽 */
-.prompt-field-box {
+.prompt-input-frame {
   background: var(--bg-well);
   border: 1px solid var(--bevel-subtle);
   border-radius: var(--radius-sm);
@@ -510,7 +506,7 @@ html, body {
   overflow: hidden;
 }
 
-.prompt-field-box:focus-within {
+.prompt-input-frame:focus-within {
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 0 1px var(--bevel-gold-active), inset 0 2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -529,7 +525,7 @@ textarea#prompt {
   outline: none;
 }
 
-.inspiration-tags-lane {
+.quick-tags-lane {
   display: flex;
   gap: 5px;
   overflow-x: auto;
@@ -538,11 +534,11 @@ textarea#prompt {
   border-top: 1px solid var(--bevel-subtle);
   scrollbar-width: none;
 }
-.inspiration-tags-lane::-webkit-scrollbar {
+.quick-tags-lane::-webkit-scrollbar {
   display: none;
 }
 
-.inspire-tag-pill {
+.tag-pill {
   background: var(--bg-card);
   border: 1px solid var(--bevel-subtle);
   box-shadow: var(--specular-chamfer);
@@ -555,7 +551,7 @@ textarea#prompt {
   transition: all 0.15s ease;
 }
 
-.inspire-tag-pill:hover {
+.tag-pill:hover {
   background: var(--gold-subtle);
   border-color: var(--bevel-gold);
   color: var(--text-pure);
@@ -563,7 +559,7 @@ textarea#prompt {
 }
 
 /* 画风预设微型艺术色板网格 */
-.preset-card-matrix {
+.preset-matrix-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
@@ -607,18 +603,18 @@ textarea#prompt {
 
 .preset-chip-card.active .preset-art-swatch {
   opacity: 1;
-  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 6px rgba(243, 229, 171, 0.5);
 }
 
 .swatch-none { background: linear-gradient(90deg, #52525b, #71717a); }
-.swatch-laowuyang { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.swatch-laowuyang { background: linear-gradient(90deg, #c5a059, #f3e5ab); }
 .swatch-hiten { background: linear-gradient(90deg, #38bdf8, #818cf8); }
-.swatch-pop { background: linear-gradient(90deg, #ec4899, #f59e0b); }
+.swatch-pop { background: linear-gradient(90deg, #ec4899, #c5a059); }
 .swatch-ghostblade { background: linear-gradient(90deg, #6366f1, #3b82f6); }
 .swatch-mature { background: linear-gradient(90deg, #e11d48, #9333ea); }
 .swatch-watercolor { background: linear-gradient(90deg, #10b981, #06b6d4); }
-.swatch-retro { background: linear-gradient(90deg, #ea580c, #ca8a04); }
-.swatch-oil { background: linear-gradient(90deg, #854d0e, #d97706); }
+.swatch-retro { background: linear-gradient(90deg, #b89345, #5c471e); }
+.swatch-oil { background: linear-gradient(90deg, #8c6d32, #c5a059); }
 
 .preset-meta-row {
   display: flex;
@@ -650,7 +646,7 @@ textarea#prompt {
 }
 
 /* 画幅比例微缩线框选择 */
-.size-card-matrix {
+.size-matrix-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
@@ -718,11 +714,11 @@ textarea#prompt {
 }
 
 /* 画师单行输入框 */
-.input-focus-frame {
+.single-input-frame {
   position: relative;
 }
 
-.text-input-field {
+.text-input {
   width: 100%;
   background: var(--bg-well);
   border: 1px solid var(--bevel-subtle);
@@ -735,19 +731,19 @@ textarea#prompt {
   transition: border-color 0.18s;
 }
 
-.text-input-field:focus {
+.text-input:focus {
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 0 1px var(--bevel-gold-active);
 }
 
-.artist-quick-lane {
+.artist-chips-lane {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 2px;
 }
 
-.artist-chip-pill {
+.artist-pill {
   background: var(--bg-well);
   border: 1px solid var(--bevel-subtle);
   box-shadow: var(--specular-chamfer);
@@ -759,18 +755,18 @@ textarea#prompt {
   transition: all 0.12s ease;
 }
 
-.artist-chip-pill:hover {
+.artist-pill:hover {
   background: var(--gold-subtle);
   border-color: var(--bevel-gold);
   color: var(--text-pure);
 }
 
 /* 开关组卡片 */
-.switches-cluster-card {
+.toggles-card {
   gap: 6px;
 }
 
-.switch-control-row {
+.switch-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -783,11 +779,11 @@ textarea#prompt {
   transition: all 0.12s ease;
 }
 
-.switch-control-row:hover {
+.switch-row:hover {
   background: var(--bg-card-hover);
 }
 
-.switch-meta-text {
+.switch-text-col {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -804,18 +800,18 @@ textarea#prompt {
   color: var(--text-muted);
 }
 
-.ui-switch-toggle {
+.hardware-switch {
   position: relative;
 }
 
-.ui-switch-toggle input {
+.hardware-switch input {
   position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.switch-rail {
+.hardware-track {
   display: block;
   width: 32px;
   height: 16px;
@@ -826,7 +822,7 @@ textarea#prompt {
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.switch-rail::after {
+.hardware-track::after {
   content: "";
   position: absolute;
   top: 1px;
@@ -839,27 +835,27 @@ textarea#prompt {
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ui-switch-toggle input:checked + .switch-rail {
-  background: #1f232d;
+.hardware-switch input:checked + .hardware-track {
+  background: #1e1f26;
   border-color: var(--bevel-gold-active);
   box-shadow: 0 0 6px var(--gold-glow);
 }
 
-.ui-switch-toggle input:checked + .switch-rail::after {
+.hardware-switch input:checked + .hardware-track::after {
   transform: translateX(16px);
   background: var(--gold-bright);
   box-shadow: 0 0 6px var(--gold-bright);
 }
 
 /* 核心点火出图按钮 */
-.submit-action-card {
+.action-submit-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 2px;
 }
 
-.btn-primary-render {
+.btn-ignition-render {
   position: relative;
   background: var(--btn-heavy-bg);
   border: 1px solid var(--btn-heavy-border);
@@ -878,39 +874,39 @@ textarea#prompt {
   overflow: hidden;
 }
 
-.btn-primary-render:hover:not(:disabled) {
+.btn-ignition-render:hover:not(:disabled) {
   background: var(--btn-heavy-hover);
-  border-color: rgba(251, 191, 36, 0.6);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(251, 191, 36, 0.45);
+  border-color: rgba(243, 229, 171, 0.65);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(243, 229, 171, 0.45);
 }
 
-.btn-primary-render:active:not(:disabled) {
+.btn-ignition-render:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.btn-primary-render:disabled {
+.btn-ignition-render:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
-.btn-shimmer-sheen {
+.ignition-sheen {
   position: absolute;
   top: 0;
   left: -100%;
   width: 40%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.25), transparent);
+  background: linear-gradient(90deg, transparent, rgba(243, 229, 171, 0.25), transparent);
   transform: skewX(-20deg);
-  animation: sheen-flow 4s infinite;
+  animation: gold-sweep 4s infinite;
 }
 
-@keyframes sheen-flow {
+@keyframes gold-sweep {
   0% { left: -100%; }
   25%, 100% { left: 200%; }
 }
 
-.btn-content-wrap {
+.btn-label-wrap {
   position: relative;
   z-index: 1;
   display: flex;
@@ -918,13 +914,13 @@ textarea#prompt {
   gap: 8px;
 }
 
-.btn-spark-svg {
+.ignition-svg {
   width: 15px;
   height: 15px;
   color: var(--gold-bright);
 }
 
-.btn-shortcut-kbd {
+.key-kbd {
   font-size: 9.5px;
   font-family: var(--font-mono);
   background: rgba(255, 255, 255, 0.15);
@@ -945,14 +941,14 @@ textarea#prompt {
   to { transform: rotate(360deg); }
 }
 
-.footnote-hint {
+.footnote-info {
   font-size: 10px;
   color: var(--text-muted);
   text-align: center;
   line-height: 1.4;
 }
 
-/* ---------------- 右侧主展厅舞台 (Main Stage) ---------------- */
+/* ---------------- 右侧主展厅舞台 (Stage) ---------------- */
 .workbench-main-stage {
   height: 100%;
   background: var(--bg-theater);
@@ -1024,10 +1020,6 @@ textarea#prompt {
   margin-bottom: 12px;
   color: var(--gold-bright);
   font-size: 18px;
-}
-
-.empty-spark-icon {
-  line-height: 1;
 }
 
 .empty-lead-title {
@@ -1102,6 +1094,11 @@ textarea#prompt {
   transition: all 0.15s ease;
 }
 
+.btn-svg {
+  width: 13px;
+  height: 13px;
+}
+
 .dock-btn:hover:not(:disabled) {
   background: var(--bg-card-hover);
   border-color: var(--bevel-medium);
@@ -1157,11 +1154,6 @@ textarea#prompt {
 }
 
 /* 2. 提示词工程透视卡 */
-.prompt-inspector-section {
-  display: flex;
-  flex-direction: column;
-}
-
 .inspector-panel-card {
   background: var(--bg-card);
   border: 1px solid var(--bevel-subtle);
@@ -1509,45 +1501,28 @@ textarea#prompt {
   color: var(--text-secondary);
 }
 
-.vault-lead-title,
-.vault-lead-text {
+.vault-lead-title {
   font-size: 13.5px;
   font-weight: 700;
   color: var(--text-pure);
 }
 
-.vault-specs-text,
-.vault-sub-specs {
+.vault-specs-text {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 3px;
   display: block;
 }
 
-.stego-workshop-grid,
-.stego-vault-split-grid {
+.stego-workshop-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
 .stego-interactive-card,
-.stego-input-card,
 .stego-result-card {
   padding: 22px;
-}
-
-.vault-success-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--status-live-bg);
-  color: var(--status-live);
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: var(--radius-xs);
-  margin-bottom: 12px;
 }
 
 .extract-status-note {
@@ -1570,8 +1545,7 @@ textarea#prompt {
   margin-bottom: 12px;
 }
 
-.extracted-preview-bezel,
-.extracted-preview-box {
+.extracted-preview-bezel {
   background: var(--bg-theater);
   border-radius: var(--radius-xs);
   padding: 12px;
@@ -1582,8 +1556,7 @@ textarea#prompt {
   border: 1px solid var(--bevel-subtle);
 }
 
-.extracted-preview-bezel img,
-.extracted-preview-box img {
+.extracted-preview-bezel img {
   max-width: 100%;
   max-height: 320px;
   object-fit: contain;
@@ -1695,8 +1668,7 @@ textarea#prompt {
     border-right: none;
     border-bottom: 1px solid var(--bevel-subtle);
   }
-  .stego-workshop-grid,
-  .stego-vault-split-grid {
+  .stego-workshop-grid {
     grid-template-columns: 1fr;
   }
 }

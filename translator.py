@@ -49,6 +49,58 @@ LEXICON = {
     "魔法少女": "magical girl", "学生": "student",
     "老师": "teacher", "秘书": "secretary",
 
+    # ---- 常用角色与作品 ----
+    # 用户经常只发角色名。必须落到 danbooru 实际角色标签，不能当未知中文丢掉。
+    "惣流明日香兰格雷": "1girl, souryuu asuka langley, neon genesis evangelion",
+    "惣流·明日香·兰格雷": "1girl, souryuu asuka langley, neon genesis evangelion",
+    "明日香兰格雷": "1girl, souryuu asuka langley, neon genesis evangelion",
+    "式波明日香": "1girl, shikinami asuka langley, neon genesis evangelion",
+    "明日香": "1girl, souryuu asuka langley, neon genesis evangelion",
+    "アスカ": "1girl, souryuu asuka langley, neon genesis evangelion",
+    "绫波丽": "1girl, ayanami rei, neon genesis evangelion",
+    "绫波": "1girl, ayanami rei, neon genesis evangelion",
+    "碇真嗣": "1boy, ikari shinji, neon genesis evangelion",
+    "真嗣": "1boy, ikari shinji, neon genesis evangelion",
+    "渚薰": "1boy, nagisa kaworu, neon genesis evangelion",
+    "葛城美里": "1girl, katsuragi misato, neon genesis evangelion",
+    "初号机": "eva 01, neon genesis evangelion",
+    "新世纪福音战士": "neon genesis evangelion",
+    "福音战士": "neon genesis evangelion",
+    "初音未来": "1girl, hatsune miku, vocaloid",
+    "初音": "1girl, hatsune miku, vocaloid",
+    "镜音铃": "1girl, kagamine rin, vocaloid",
+    "镜音连": "1boy, kagamine len, vocaloid",
+    "巡音流歌": "1girl, megurine luka, vocaloid",
+    "蕾姆": "1girl, rem (re:zero), re:zero kara hajimeru isekai seikatsu",
+    "拉姆": "1girl, ram (re:zero), re:zero kara hajimeru isekai seikatsu",
+    "爱蜜莉雅": "1girl, emilia (re:zero), re:zero kara hajimeru isekai seikatsu",
+    "艾米莉亚": "1girl, emilia (re:zero), re:zero kara hajimeru isekai seikatsu",
+    "祢豆子": "1girl, kamado nezuko, kimetsu no yaiba",
+    "炭治郎": "1boy, kamado tanjirou, kimetsu no yaiba",
+    "蝴蝶忍": "1girl, kochou shinobu, kimetsu no yaiba",
+    "甘露寺": "1girl, kanroji mitsuri, kimetsu no yaiba",
+    "路飞": "1boy, monkey d. luffy, one piece",
+    "索隆": "1boy, roronoa zoro, one piece",
+    "娜美": "1girl, nami (one piece), one piece",
+    "鸣人": "1boy, uzumaki naruto, naruto (series)",
+    "佐助": "1boy, uchiha sasuke, naruto (series)",
+    "雏田": "1girl, hyuuga hinata, naruto (series)",
+    "悟空": "1boy, son goku, dragon ball",
+    "贝吉塔": "1boy, vegeta, dragon ball",
+    "2b": "1girl, 2b (nier:automata), nier:automata",
+    "2B": "1girl, 2b (nier:automata), nier:automata",
+    "约尔": "1girl, yor briar, spy x family",
+    "阿尼亚": "1girl, anya (spy x family), spy x family",
+    "芙莉莲": "1girl, frieren, sousou no frieren",
+    "菲伦": "1girl, fern (sousou no frieren), sousou no frieren",
+    "高木": "1girl, takagi-san, karakai jouzu no takagi-san",
+    "喜多川海梦": "1girl, kitagawa marin, sono bisque doll wa koi wo suru",
+    "海梦": "1girl, kitagawa marin, sono bisque doll wa koi wo suru",
+    "后藤一里": "1girl, gotoh hitori, bocchi the rock!",
+    "波奇": "1girl, gotoh hitori, bocchi the rock!",
+    "伊蕾娜": "1girl, elaina (majo no tabitabi), majo no tabitabi",
+    "薇尔莉特": "1girl, violet evergarden, violet evergarden (series)",
+
     # ---- 发长与发型 ----
     "拖地长发": "absurdly long hair",
     "及腰长发": "very long hair", "超长发": "very long hair",
@@ -458,7 +510,9 @@ LLM_INSTRUCTION = (
     "6. 控制在 25 个标签以内。\n"
     "7. 颜色、服装、发型、表情、姿势、构图、道具、场景都要转换，不要遗漏。\n"
     "8. 武器要写成具体标签，例如 katana、guandao、spear，不要只写 weapon。\n"
-    "9. 不要输出 NSFW 相关的露骨标签。\n\n"
+    "9. 不要输出 NSFW 相关的露骨标签。\n"
+    "10. 若用户只发角色名、外号或作品名，必须输出 danbooru 角色标签，并补 1girl 或 1boy。\n"
+    "    例如明日香 = souryuu asuka langley，初音 = hatsune miku。不要把角色名译成普通英文单词。\n\n"
     "示例：\n"
     "中文描述：一个穿白色连衣裙的长发女孩站在花田里\n"
     "标签：1girl, solo, long hair, white dress, standing, flower field, outdoors\n\n"
@@ -468,6 +522,8 @@ LLM_INSTRUCTION = (
     "标签：1girl, blonde hair, twintails, beach, bikini, sunset, backlighting, ocean\n\n"
     "中文描述：手持青龙偃月刀的银发女性，全身，废墟\n"
     "标签：1girl, silver hair, holding, guandao, full body, ruins\n\n"
+    "中文描述：明日香\n"
+    "标签：1girl, souryuu asuka langley, neon genesis evangelion\n\n"
     "中文描述：{text}\n"
     "标签："
 )
@@ -504,6 +560,17 @@ def _strip_stopwords(text):
     return " ".join(parts)
 
 
+def _ascii_word_boundary(text, start, end):
+    """ASCII 短键只在词边界命中，避免 2b 吃掉 2boys。"""
+    before = text[start - 1] if start > 0 else ""
+    after = text[end] if end < len(text) else ""
+    if before.isalnum() or before == "_":
+        return False
+    if after.isalnum() or after == "_":
+        return False
+    return True
+
+
 def translate_by_lexicon(text):
     """用词典替换中文片段，返回 (标签串, 未识别的中文残留)。
 
@@ -519,9 +586,13 @@ def translate_by_lexicon(text):
         current = remaining[index]
         hit = None
         for key in _KEYS_BY_FIRST.get(current, ()):
-            if remaining.startswith(key, index):
-                hit = key
-                break
+            if not remaining.startswith(key, index):
+                continue
+            end = index + len(key)
+            if key.isascii() and not _ascii_word_boundary(remaining, index, end):
+                continue
+            hit = key
+            break
         if hit:
             matched.append(LEXICON[hit])
             rebuilt.append(",")

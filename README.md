@@ -91,7 +91,8 @@ python vangonography_api.py extract "原始隐写文件.png" -o "输出目录" -
 ```
 
 支持中英标签混写，例如 `/nai 1girl, 长发, blue eyes`。插件只转换中文部分，
-`1girl` 和 `blue eyes` 等已有英文标签会原样保留。
+`1girl` 和 `blue eyes` 等已有英文标签会原样保留。只发角色名也可以，例如 `/nai 明日香`
+会转成 `souryuu asuka langley` 这类 danbooru 角色标签。
 
 如果词典和 LLM 都无法把纯中文描述转换为有效标签，插件会在调用绘图 API 前停止，
 明确提示改用英文标签或开启中文智能翻译，不会用无效中文白白消耗一次生成额度。

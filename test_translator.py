@@ -132,6 +132,24 @@ def test_lexicon():
     check(tags == "" and leftover == "", "空输入安全")
     check(len(LEXICON) >= 500, "词典覆盖常用绘画描述")
 
+    tags, leftover = translate_by_lexicon("明日香")
+    check("souryuu asuka langley" in tags, "明日香 命中角色标签")
+    check("1girl" in tags, "明日香 补人数标签")
+    check(leftover == "", "明日香 无残留")
+
+    tags, leftover = translate_by_lexicon("式波明日香")
+    check("shikinami asuka langley" in tags, "式波明日香 命中 Rebuild 角色标签")
+    check("souryuu asuka langley" not in tags, "式波明日香 不误用 TV 版标签")
+
+    tags, leftover = translate_by_lexicon("长发明日香，校服")
+    check("souryuu asuka langley" in tags and "long hair" in tags, "角色名可与描述混写")
+    check("school uniform" in tags, "明日香混写仍命中校服")
+    check(leftover == "", "角色名混写无残留")
+
+    tags, leftover = translate_by_lexicon("2boys, 1girl")
+    check("2b (nier:automata)" not in tags, "2b 不截断 2boys")
+    check("2boys" in tags and "1girl" in tags, "英文人数标签原样保留")
+
 
 def test_sanitize():
     print("LLM 输出清洗：")
@@ -180,16 +198,23 @@ def test_to_tags():
         tags, note = await to_tags(None, "长发女孩微笑", use_llm=False)
         check("long hair" in tags and "1girl" in tags, "词典全命中")
 
+        # 只发角色名：词典命中，不调用 LLM，也不报翻译失败
+        class GuardProvider(FakeProvider):
+            async def text_chat(self, prompt=""):
+                raise AssertionError("词典已覆盖时不应调用 LLM")
+
+        ctx = FakeContext(GuardProvider(reply="should not run"))
+        tags, note = await to_tags(ctx, "明日香", use_llm=True)
+        check("souryuu asuka langley" in tags, "单发明日香走词典角色标签")
+        check("1girl" in tags, "单发明日香补 1girl")
+        check(note == "", "单发明日香不提示翻译失败")
+
         # 词典未覆盖 + LLM 关闭
         tags, note = await to_tags(None, "长发女孩拿着量子纠缠矩阵", use_llm=False)
         check("long hair" in tags, "保留词典命中部分")
         check("忽略" in note and "量子纠缠矩阵" in note, "提示未识别部分被忽略")
 
         # 词典已覆盖时不调用 LLM，避免把稳定结果换成模型胡写
-        class GuardProvider(FakeProvider):
-            async def text_chat(self, prompt=""):
-                raise AssertionError("词典已覆盖时不应调用 LLM")
-
         ctx = FakeContext(GuardProvider(reply="should not run"))
         tags, note = await to_tags(ctx, "长发女孩拿着一把青龙偃月刀", use_llm=True)
         check("guandao" in tags and "1girl" in tags, "已知中文整句走词典")

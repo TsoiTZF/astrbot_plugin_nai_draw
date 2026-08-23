@@ -3,6 +3,7 @@
 import asyncio
 import importlib
 import io
+import re
 import sys
 import tempfile
 import types
@@ -323,6 +324,18 @@ def test_page_files():
     check(".tab-btn" not in js and ".studio-mode-pane" not in js, "不再查询已废弃的旧类名")
     check('payload.status === "error"' in js, "错误回包会抛出真实原因")
     check("出图接口没有返回图片" in js, "缺图时不当作渲染成功")
+    html_classes = set()
+    for chunk in re.findall(r'class="([^"]+)"', html):
+        html_classes.update(chunk.split())
+    skip = {"font-mono", "workspace", "composer"}
+    missing = sorted(
+        name
+        for name in html_classes
+        if name not in skip and not name.startswith("swatch-") and name not in css
+    )
+    check(not missing, "HTML 类名都能在 CSS 中找到")
+    check(".app-viewport-root" in css and ".studio-content-body" in css, "根容器与主体区有布局样式")
+    check(".view-mode-panel" in css and ".nav-menu-btn" in css, "模式面板与顶栏按钮有布局样式")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

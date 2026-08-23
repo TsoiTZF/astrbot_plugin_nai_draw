@@ -1,9 +1,6 @@
 /**
- * 绘台 (Studio) - 硬件工坊高定驱动系统 (Machined Console)
- * 增加：
- * 1. 预设微型艺术色板渲染
- * 2. 尺寸微缩矢量线框渲染
- * 3. 点击成图全屏灯箱无损放大预览 (Fullscreen Lightbox)
+ * 绘台 (Studio) - 全功能一体化工坊核心驱动脚本
+ * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
 // 示例灵感画面库
@@ -87,7 +84,6 @@ const els = {
   modelStatus: document.getElementById("status-model"),
   galleryCount: document.getElementById("status-gallery"),
   coverCount: document.getElementById("status-covers"),
-  tabGalleryCount: document.getElementById("tab-gallery-count"),
   tabCoverCount: document.getElementById("tab-cover-count"),
   
   // 表单与输入
@@ -97,7 +93,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-gold-pill"),
+  artistChips: document.querySelectorAll(".artist-pill"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -113,12 +109,13 @@ const els = {
   presetSummary: document.getElementById("preset-summary"),
   sizeSummary: document.getElementById("size-summary"),
 
-  // 画布与结果区
+  // 画布与主结果区
   canvasViewport: document.getElementById("canvas-viewport"),
   artworkFrame: document.getElementById("artwork-frame"),
   resultImage: document.getElementById("result-image"),
   resultEmpty: document.getElementById("result-empty"),
   resultDock: document.getElementById("result-dock"),
+  promptInspectorBox: document.getElementById("prompt-inspector-box"),
   downloadResult: document.getElementById("download-result"),
   downloadStego: document.getElementById("download-stego"),
   sheetPreset: document.getElementById("sheet-preset"),
@@ -137,9 +134,9 @@ const els = {
   lightboxClose: document.getElementById("lightbox-close"),
   lightboxImg: document.getElementById("lightbox-img"),
 
-  // 导航
-  tabs: document.querySelectorAll(".segment-pill-btn"),
-  tabPanels: document.querySelectorAll(".viewport-pane"),
+  // 顶栏模式导航
+  tabs: document.querySelectorAll(".tab-btn"),
+  tabPanels: document.querySelectorAll(".studio-mode-pane"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -178,7 +175,7 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `machined-toast-bezel ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `royal-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
@@ -206,7 +203,7 @@ async function apiPost(endpoint, body) {
   return unwrap(await bridge.apiPost(endpoint, body));
 }
 
-// 选项卡切换
+// 顶栏模式切换
 function setupTabs() {
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -225,43 +222,42 @@ function setupTabs() {
   });
 }
 
-// 渲染画风预设矩阵（带艺术微缩色板）
+// 渲染画风预设矩阵（专属艺术微缩色板）
 function renderPresets(presets) {
   els.presetGrid.replaceChildren();
   for (const item of presets) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `preset-chip-lux-card ${item.key === state.preset ? "active" : ""}`;
+    card.className = `preset-chip-card ${item.key === state.preset ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
-    // 艺术微缩色板条
     const swatch = document.createElement("div");
     swatch.className = `preset-art-swatch swatch-${item.key}`;
 
-    const labelRow = document.createElement("div");
-    labelRow.className = "preset-label-row";
+    const metaRow = document.createElement("div");
+    metaRow.className = "preset-meta-row";
 
     const seqSpan = document.createElement("span");
-    seqSpan.className = "preset-seq-tag";
+    seqSpan.className = "preset-seq";
     seqSpan.textContent = `#${item.number}`;
 
     const titleSpan = document.createElement("span");
-    titleSpan.className = "preset-name-text";
+    titleSpan.className = "preset-name";
     titleSpan.textContent = item.label.split("（")[0];
     card.title = item.label;
 
-    labelRow.appendChild(seqSpan);
-    labelRow.appendChild(titleSpan);
+    metaRow.appendChild(seqSpan);
+    metaRow.appendChild(titleSpan);
 
     card.appendChild(swatch);
-    card.appendChild(labelRow);
+    card.appendChild(metaRow);
 
     card.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-chip-lux-card").forEach((c) => {
+      els.presetGrid.querySelectorAll(".preset-chip-card").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -272,35 +268,34 @@ function renderPresets(presets) {
   }
 }
 
-// 渲染画幅尺寸选择矩阵（带微缩矢量比例线框）
+// 渲染画幅尺寸选择矩阵（微缩矢量线框）
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `size-wireframe-chip ${item.key === state.size ? "active" : ""}`;
+    card.className = `size-wireframe-card ${item.key === state.size ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
 
-    // 比例模型映射
     let boxClass = "box-portrait";
     if (item.key === "832x832") boxClass = "box-square";
     else if (item.key === "1216x832") boxClass = "box-landscape";
     else if (item.key === "1024x1024") boxClass = "box-large";
 
     const iconWrap = document.createElement("div");
-    iconWrap.className = "ratio-wireframe-icon";
+    iconWrap.className = "ratio-wireframe-box";
     const box = document.createElement("div");
-    box.className = `wireframe-box ${boxClass}`;
+    box.className = `wireframe-shape ${boxClass}`;
     iconWrap.appendChild(box);
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "size-name-text";
+    nameSpan.className = "size-title";
     nameSpan.textContent = item.label;
 
     const resSpan = document.createElement("span");
-    resSpan.className = "size-pixel-res";
+    resSpan.className = "size-dim";
     resSpan.textContent = item.hint;
 
     card.appendChild(iconWrap);
@@ -310,7 +305,7 @@ function renderSizes(sizes) {
     card.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-wireframe-chip").forEach((c) => {
+      els.sizeRow.querySelectorAll(".size-wireframe-card").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -321,18 +316,17 @@ function renderSizes(sizes) {
   }
 }
 
-// 渲染画廊瀑布流
+// 渲染近期成图历史档案胶卷 (Instant Filmstrip)
 function renderGallery(items) {
   state.gallery = items || [];
   const count = state.gallery.length;
   if (els.galleryCount) els.galleryCount.textContent = count;
-  if (els.tabGalleryCount) els.tabGalleryCount.textContent = count;
 
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "vault-specs-label";
-    emptyNotice.textContent = "档案库暂无历史成图。在左侧描述画面后点击渲染即可自动归档。";
+    emptyNotice.className = "filmstrip-tip";
+    emptyNotice.textContent = "暂无近期生成记录，在左侧描述画面后点击出图即可在此处即时展示。";
     els.gallery.appendChild(emptyNotice);
     return;
   }
@@ -376,6 +370,7 @@ function renderGallery(items) {
     card.appendChild(img);
     card.appendChild(meta);
 
+    // 点击胶卷卡片：在主画布中即时重放
     card.addEventListener("click", async () => {
       try {
         const res = await apiGet("preview", { name: item.name });
@@ -387,11 +382,13 @@ function renderGallery(items) {
             size: "自适应",
             nsfw: false,
             face_variation: true,
-            prompt: "（历史作品提示词已归档）",
+            prompt: "（该历史作品完整标签已安全归档）",
             negative: "—",
           });
-          els.tabs[0].click();
-          showToast(`已在主巨幕中载入 ${item.name}`);
+          // 平滑滚动回顶部巨幕
+          const scroller = document.querySelector(".panel-stage");
+          if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
+          showToast(`已在画布中载入 ${item.name}`);
         }
       } catch (err) {
         showToast(`载入历史作品失败: ${errorMessage(err)}`, "error");
@@ -412,7 +409,7 @@ function renderCovers(items) {
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "vault-specs-label";
+    emptyNotice.className = "vault-specs-text";
     emptyNotice.textContent = "载体库暂无图片。拖拽图片至上方磁吸区或点击上传。";
     els.covers.appendChild(emptyNotice);
     return;
@@ -483,6 +480,7 @@ function displayResultOnCanvas(imageObj, meta) {
     els.resultEmpty.style.display = "none";
   }
   els.resultDock.hidden = false;
+  if (els.promptInspectorBox) els.promptInspectorBox.hidden = false;
 
   els.sheetPreset.textContent = meta.preset_label || meta.preset || "—";
   els.sheetSize.textContent = meta.size || "—";
@@ -518,7 +516,7 @@ async function bootstrap() {
     state.sizes = data.sizes || [];
 
     els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
-    els.statusDot.className = `beacon-gold-led ${state.configured ? "ready" : "error"}`;
+    els.statusDot.className = `status-dot ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -535,7 +533,7 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "OFFLINE";
-    els.statusDot.className = "beacon-gold-led error";
+    els.statusDot.className = "status-dot error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -563,7 +561,7 @@ function setupEventListeners() {
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".inspire-gold-chip");
+      const tag = e.target.closest(".tag-pill");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;
@@ -695,7 +693,6 @@ function setupEventListeners() {
         renderGallery(result.gallery);
       }
 
-      els.tabs[0].click();
       showToast("渲染完成，杰作已呈现！");
     } catch (err) {
       showToast(`渲染失败: ${errorMessage(err)}`, "error");

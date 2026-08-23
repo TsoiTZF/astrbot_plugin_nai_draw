@@ -1,17 +1,15 @@
 /**
- * 绘台 (Atelier Studio) - 前端核心驱动
+ * 绘台 (Studio) - 极简实用主义驱动脚本
  * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
-// 灵感画面库预置
-const INSPIRATIONS = [
-  "长发少女，夜雨旗袍，侧光，看着镜头，唯美光影",
-  "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光",
-  "赛博机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5",
-  "日系水彩透明感，夏日微风，JK制服少女，向日葵花海",
-  "深海幽蓝幻境，漂浮发丝，发光水母，梦幻水波倒影",
-  "复古洛丽塔洋装，红酒玫瑰，哥特华丽少女，微光暗调",
-  "星际战舰舰桥，星云璀璨，星际指挥官少女，全息投影",
+// 示例画面库
+const SAMPLES = [
+  "1girl, 长发, 白发, 夜景旗袍, 侧光, 看着镜头, 高清",
+  "1girl, 汉服, 折扇, 唯美, 黑发, 红色眼瞳, 高画质",
+  "1girl, 赛博机能风, 机械义肢, 荧光眼眸, 霓虹光影",
+  "1girl, 水彩风格, 夏日微风, JK制服, 向日葵",
+  "1girl, 洛丽塔洋装, 玫瑰, 哥特风格, 暗调光影",
 ];
 
 function createFallbackBridge() {
@@ -34,8 +32,8 @@ function createFallbackBridge() {
         enable_face_variation: true,
         presets: [
           { number: 0, key: "none", label: "无预设", faces: 0 },
-          { number: 1, key: "laowuyang", label: "老五样（通用美脸）", faces: 16 },
-          { number: 2, key: "hiten", label: "hiten 柔和日系", faces: 16 },
+          { number: 1, key: "laowuyang", label: "老五样", faces: 16 },
+          { number: 2, key: "hiten", label: "hiten", faces: 16 },
           { number: 3, key: "pop", label: "波普撞色", faces: 16 },
           { number: 4, key: "ghostblade", label: "鬼刀厚涂", faces: 12 },
           { number: 5, key: "mature", label: "成熟妩媚", faces: 16 },
@@ -61,7 +59,7 @@ function createFallbackBridge() {
 
 const bridge = window.AstrBotPluginPage || createFallbackBridge();
 
-// 全局响应式状态
+// 全局状态
 const state = {
   configured: false,
   preset: "laowuyang",
@@ -78,7 +76,7 @@ const state = {
 
 // DOM 元素引用
 const els = {
-  // 顶部状态
+  // 顶栏
   apiStatus: document.getElementById("status-api"),
   statusDot: document.getElementById("status-dot"),
   modelStatus: document.getElementById("status-model"),
@@ -87,14 +85,13 @@ const els = {
   tabGalleryCount: document.getElementById("tab-gallery-count"),
   tabCoverCount: document.getElementById("tab-cover-count"),
   
-  // 表单与交互
+  // 表单与输入
   form: document.getElementById("draw-form"),
   prompt: document.getElementById("prompt"),
   btnClearPrompt: document.getElementById("btn-clear-prompt"),
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
-  quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-chip"),
+  artistChips: document.querySelectorAll(".shortcut-tag"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -109,7 +106,7 @@ const els = {
   presetSummary: document.getElementById("preset-summary"),
   sizeSummary: document.getElementById("size-summary"),
 
-  // 画布视口与 Dock
+  // 画布与结果区
   canvasViewport: document.getElementById("canvas-viewport"),
   artworkFrame: document.getElementById("artwork-frame"),
   resultImage: document.getElementById("result-image"),
@@ -127,9 +124,9 @@ const els = {
   btnCopyPrompt: document.getElementById("btn-copy-prompt"),
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
-  // 导航切换
-  tabs: document.querySelectorAll(".nav-link"),
-  tabPanels: document.querySelectorAll(".atelier-pane"),
+  // 导航
+  tabs: document.querySelectorAll(".nav-tab"),
+  tabPanels: document.querySelectorAll(".view-tab-pane"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -139,7 +136,7 @@ const els = {
   coverFile: document.getElementById("cover-file"),
   coverDropZone: document.getElementById("cover-drop-zone"),
 
-  // 隐写拆封
+  // 隐写提取
   extractDropZone: document.getElementById("extract-drop-zone"),
   extractFile: document.getElementById("extract-file"),
   extractPassword: document.getElementById("extract-password"),
@@ -148,7 +145,7 @@ const els = {
   extractPreviewImg: document.getElementById("extract-preview-img"),
   btnDownloadExtracted: document.getElementById("btn-download-extracted"),
 
-  // Toast 悬浮通知
+  // Toast
   toast: document.getElementById("toast"),
 };
 
@@ -168,19 +165,19 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `atelier-toast ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `simple-toast ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     els.toast.hidden = true;
-  }, 4000);
+  }, 3500);
 }
 
 function setBusy(busy) {
   state.isBusy = busy;
   els.drawButton.disabled = busy;
   els.drawSpinner.hidden = !busy;
-  if (els.drawBtnText) els.drawBtnText.textContent = busy ? "渲染中..." : "出图";
+  if (els.drawBtnText) els.drawBtnText.textContent = busy ? "正在生成..." : "生成图片";
 }
 
 function dataUrl(image) {
@@ -214,80 +211,80 @@ function setupTabs() {
   });
 }
 
-// 渲染画风预设网格
+// 渲染预设选择器
 function renderPresets(presets) {
   els.presetGrid.replaceChildren();
   for (const item of presets) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `preset-pill-btn ${item.key === state.preset ? "active" : ""}`;
-    card.dataset.key = item.key;
-    card.setAttribute("role", "radio");
-    card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `choice-btn ${item.key === state.preset ? "active" : ""}`;
+    btn.dataset.key = item.key;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
-    const seqSpan = document.createElement("span");
-    seqSpan.className = "preset-index";
-    seqSpan.textContent = `#${item.number}`;
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "choice-name";
+    nameSpan.textContent = item.label.split("（")[0];
+    btn.title = item.label;
 
-    const titleSpan = document.createElement("span");
-    titleSpan.className = "preset-name";
-    titleSpan.textContent = item.label.split("（")[0];
-    card.title = item.label;
+    const subSpan = document.createElement("span");
+    subSpan.className = "choice-sub";
+    subSpan.textContent = `#${item.number}`;
 
-    card.appendChild(seqSpan);
-    card.appendChild(titleSpan);
+    btn.appendChild(nameSpan);
+    btn.appendChild(subSpan);
 
-    card.addEventListener("click", () => {
+    btn.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-pill-btn").forEach((c) => {
+      els.presetGrid.querySelectorAll(".choice-btn").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
       });
     });
 
-    els.presetGrid.appendChild(card);
+    els.presetGrid.appendChild(btn);
   }
 }
 
-// 渲染画幅尺寸选择网格
+// 渲染画幅尺寸选择器
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `size-pill-btn ${item.key === state.size ? "active" : ""}`;
-    card.dataset.key = item.key;
-    card.setAttribute("role", "radio");
-    card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `choice-btn ${item.key === state.size ? "active" : ""}`;
+    btn.dataset.key = item.key;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "size-name";
+    nameSpan.className = "choice-name";
     nameSpan.textContent = item.label;
 
-    const hintSpan = document.createElement("span");
-    hintSpan.className = "size-hint";
-    hintSpan.textContent = item.hint;
+    const subSpan = document.createElement("span");
+    subSpan.className = "choice-sub";
+    subSpan.textContent = item.hint;
 
-    card.appendChild(nameSpan);
-    card.appendChild(hintSpan);
+    btn.appendChild(nameSpan);
+    btn.appendChild(subSpan);
 
-    card.addEventListener("click", () => {
+    btn.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-pill-btn").forEach((c) => {
+      els.sizeRow.querySelectorAll(".choice-btn").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
       });
     });
 
-    els.sizeRow.appendChild(card);
+    els.sizeRow.appendChild(btn);
   }
 }
 
-// 渲染画廊瀑布流
+// 渲染画廊
 function renderGallery(items) {
   state.gallery = items || [];
   const count = state.gallery.length;
@@ -297,8 +294,8 @@ function renderGallery(items) {
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-subtext";
-    emptyNotice.textContent = "档案库暂无历史成图。";
+    emptyNotice.className = "dropzone-hint";
+    emptyNotice.textContent = "暂无生成记录。";
     els.gallery.appendChild(emptyNotice);
     return;
   }
@@ -349,7 +346,7 @@ function renderGallery(items) {
           state.currentName = item.name;
           state.stegoName = "";
           displayResultOnCanvas(res.image, {
-            preset_label: item.preset || "历史归档",
+            preset_label: item.preset || "历史作品",
             size: "自适应",
             nsfw: false,
             face_variation: true,
@@ -378,8 +375,8 @@ function renderCovers(items) {
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-subtext";
-    emptyNotice.textContent = "载体库暂无图片。";
+    emptyNotice.className = "dropzone-hint";
+    emptyNotice.textContent = "图库暂无图片。";
     els.covers.appendChild(emptyNotice);
     return;
   }
@@ -421,7 +418,7 @@ function renderCovers(items) {
     btnDel.textContent = "删除";
     btnDel.addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (!confirm(`确定要从载体图库中删除 ${item.name} 吗？`)) return;
+      if (!confirm(`确定删除 ${item.name} 吗？`)) return;
       try {
         const res = await apiPost("covers/delete", { name: item.name });
         renderCovers(res.covers);
@@ -453,7 +450,7 @@ function displayResultOnCanvas(imageObj, meta) {
   els.sheetPreset.textContent = meta.preset_label || meta.preset || "—";
   els.sheetSize.textContent = meta.size || "—";
   els.sheetNsfw.textContent = meta.nsfw ? "NSFW" : "SFW";
-  els.sheetFace.textContent = meta.face_variation ? "脸型增强" : "原脸型";
+  els.sheetFace.textContent = meta.face_variation ? "自动脸型" : "原脸型";
   els.sheetPrompt.textContent = meta.prompt || "—";
   els.sheetNegative.textContent = meta.negative || "—";
 
@@ -468,7 +465,7 @@ function displayResultOnCanvas(imageObj, meta) {
   els.downloadStego.hidden = !state.stegoName;
 }
 
-// 初始化引导数据
+// 初始化
 async function bootstrap() {
   try {
     const readyState = await bridge.ready();
@@ -484,7 +481,7 @@ async function bootstrap() {
     state.sizes = data.sizes || [];
 
     els.apiStatus.textContent = state.configured ? "就绪" : "未配置";
-    els.statusDot.className = `status-orb ${state.configured ? "ready" : "error"}`;
+    els.statusDot.className = `status-dot ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -501,12 +498,12 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "离线";
-    els.statusDot.className = "status-orb error";
-    showToast(`初始化失败: ${errorMessage(err)}`, "error");
+    els.statusDot.className = "status-dot error";
+    showToast(`连接失败: ${errorMessage(err)}`, "error");
   }
 }
 
-// 统一绑定交互事件
+// 事件绑定
 function setupEventListeners() {
   setupTabs();
 
@@ -516,31 +513,12 @@ function setupEventListeners() {
     els.prompt.focus();
   });
 
-  // 随机灵感
+  // 随机示例
   if (els.btnRandomPrompt) {
     els.btnRandomPrompt.addEventListener("click", () => {
-      const idx = Math.floor(Math.random() * INSPIRATIONS.length);
-      els.prompt.value = INSPIRATIONS[idx];
+      const idx = Math.floor(Math.random() * SAMPLES.length);
+      els.prompt.value = SAMPLES[idx];
       els.prompt.focus();
-      showToast("已注入灵感");
-    });
-  }
-
-  // 快捷灵感词点击追加
-  if (els.quickTagsContainer) {
-    els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".tag-pill");
-      if (!tag) return;
-      const tagContent = tag.dataset.tag;
-      if (!tagContent) return;
-      const currentVal = els.prompt.value.trim();
-      if (currentVal) {
-        els.prompt.value = `${currentVal}, ${tagContent}`;
-      } else {
-        els.prompt.value = tagContent;
-      }
-      els.prompt.focus();
-      showToast(`已追加：${tag.textContent.trim()}`);
     });
   }
 
@@ -558,7 +536,6 @@ function setupEventListeners() {
         els.artists.value = artist;
       }
       els.artists.focus();
-      showToast(`已添加画师：${artist}`);
     });
   });
 
@@ -616,7 +593,7 @@ function setupEventListeners() {
     }
 
     setBusy(true);
-    els.formHint.textContent = "正在转译并请求渲染...";
+    els.formHint.textContent = "正在生成中...";
 
     try {
       const payload = {
@@ -646,10 +623,10 @@ function setupEventListeners() {
       els.tabs[0].click();
       showToast("出图完成");
     } catch (err) {
-      showToast(`出图失败: ${errorMessage(err)}`, "error");
+      showToast(`生成失败: ${errorMessage(err)}`, "error");
     } finally {
       setBusy(false);
-      els.formHint.textContent = "中文将由智能翻译转为官方标签";
+      els.formHint.textContent = "中文会自动转为英文标签";
     }
   });
 
@@ -689,7 +666,7 @@ function setupEventListeners() {
     try {
       const res = await apiGet("gallery");
       renderGallery(res.gallery);
-      showToast("画廊已刷新");
+      showToast("已刷新");
     } catch (err) {
       showToast(`刷新失败: ${errorMessage(err)}`, "error");
     }
@@ -735,7 +712,7 @@ function setupEventListeners() {
   // 隐写拆封流程
   async function handleExtract(file) {
     if (!file) return;
-    els.extractHint.textContent = `正在拆封 ${file.name}...`;
+    els.extractHint.textContent = `正在提取 ${file.name}...`;
     try {
       const password = els.extractPassword.value.trim();
       await apiPost("extract/prepare", { password });
@@ -746,8 +723,8 @@ function setupEventListeners() {
         const url = dataUrl(data.image);
         els.extractPreviewImg.src = url;
         els.extractResultPanel.hidden = false;
-        els.extractHint.textContent = "拆封成功";
-        showToast("拆封成功");
+        els.extractHint.textContent = "提取成功";
+        showToast("提取成功");
 
         els.btnDownloadExtracted.onclick = () => {
           const link = document.createElement("a");
@@ -757,8 +734,8 @@ function setupEventListeners() {
         };
       }
     } catch (err) {
-      els.extractHint.textContent = `拆封失败: ${errorMessage(err)}`;
-      showToast(`拆封失败: ${errorMessage(err)}`, "error");
+      els.extractHint.textContent = `提取失败: ${errorMessage(err)}`;
+      showToast(`提取失败: ${errorMessage(err)}`, "error");
     }
   }
 
@@ -783,7 +760,7 @@ function setupEventListeners() {
   });
 }
 
-// 页面加载完成执行
+// 启动
 document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   bootstrap();

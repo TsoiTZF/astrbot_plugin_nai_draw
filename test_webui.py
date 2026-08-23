@@ -321,6 +321,8 @@ def test_page_files():
     check("[hidden]" in css, "hidden 属性不被 flex 盖掉")
     check("document.readyState" in js, "脚本在 DOM 已解析时仍会启动")
     check(".tab-btn" not in js and ".studio-mode-pane" not in js, "不再查询已废弃的旧类名")
+    check('payload.status === "error"' in js, "错误回包会抛出真实原因")
+    check("出图接口没有返回图片" in js, "缺图时不当作渲染成功")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

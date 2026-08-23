@@ -160,7 +160,13 @@ const els = {
 };
 
 function unwrap(payload) {
-  if (payload && typeof payload === "object" && payload.status === "ok" && "data" in payload) {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+  if (payload.status === "error") {
+    throw new Error(payload.message || "请求遇到异常");
+  }
+  if (payload.status === "ok" && "data" in payload) {
     return payload.data;
   }
   return payload;
@@ -169,7 +175,11 @@ function unwrap(payload) {
 function errorMessage(error) {
   if (!error) return "请求遇到异常";
   if (typeof error === "string") return error;
-  return error.message || "请求遇到异常";
+  const text = error.message || "请求遇到异常";
+  if (/timeout|timed out|exceeded/i.test(text)) {
+    return "请求超时，请稍后重试。若刚开启角色查询，普通画面描述不应再被外网拖住";
+  }
+  return text;
 }
 
 function showToast(message, kind = "info") {
@@ -473,6 +483,10 @@ function renderCovers(items) {
 
 // 主画布呈现成图
 function displayResultOnCanvas(imageObj, meta) {
+  if (!imageObj || !imageObj.data) {
+    throw new Error("出图成功但没有返回图片数据");
+  }
+  meta = meta || {};
   els.resultImage.src = dataUrl(imageObj);
   els.artworkFrame.hidden = false;
   if (els.resultEmpty) {
@@ -681,18 +695,18 @@ function setupEventListeners() {
       };
 
       const result = await apiPost("generate", payload);
-      state.currentName = result.name;
+      if (!result || !result.image) {
+        throw new Error((result && result.message) || "出图接口没有返回图片");
+      }
+      state.currentName = result.name || "";
       state.stegoName = result.stego?.ok ? result.stego.name : "";
-
-      if (result.image) {
-        displayResultOnCanvas(result.image, result);
+      displayResultOnCanvas(result.image, result);
+      if (result.name) {
         state.thumbs.set(result.name, dataUrl(result.image));
       }
-
       if (result.gallery) {
         renderGallery(result.gallery);
       }
-
       showToast("渲染完成，杰作已呈现！");
     } catch (err) {
       showToast(`渲染失败: ${errorMessage(err)}`, "error");

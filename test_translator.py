@@ -282,9 +282,20 @@ def test_to_tags():
         check("yae miko" in tags, "未知角色名可查 Danbooru wiki")
         check(leftover == "", "查到角色后无残留")
 
-        tags, leftover = resolve_unknown_names("量子纠缠矩阵", fetch=fake_fetch)
-        check(tags == "", "不像角色名的长词不拿去查库")
-        check("量子纠缠矩阵" in leftover, "非角色残留保留给后续 LLM")
+        def no_fetch(url, timeout=8):
+            raise AssertionError(f"普通画面描述不应查询 Danbooru: {url}")
+
+        tags, note = await to_tags(
+            None, "长发女孩拿着量子纠缠矩阵", use_llm=False, fetch=no_fetch
+        )
+        check("long hair" in tags, "普通描述仍走词典")
+        check("忽略" in note, "普通描述的未知词留给提示，不查库")
+
+        ctx = FakeContext(FakeProvider(reply="holding, quantum matrix"))
+        tags, note = await to_tags(
+            ctx, "{1.2::sword::} 量子纠缠矩阵", use_llm=True, fetch=no_fetch
+        )
+        check("quantum matrix" in tags, "含花括号的提示词不会把 LLM 模板弄崩")
 
         class GuardProvider(FakeProvider):
             async def text_chat(self, prompt=""):

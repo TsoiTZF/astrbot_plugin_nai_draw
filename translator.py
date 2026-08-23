@@ -509,7 +509,7 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.3 "
+    "astrbot_plugin_nai_draw/1.7.4 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
 _LOOKUP_CACHE = {}
@@ -654,7 +654,7 @@ async def translate_by_llm(context, text, timeout=30):
             logger.debug("[叶子的逼] 无可用 LLM provider，跳过智能翻译")
             return None
 
-        prompt = LLM_INSTRUCTION.format(text=text)
+        prompt = LLM_INSTRUCTION.replace("{text}", str(text))
         if hasattr(provider, "text_chat"):
             response = await asyncio.wait_for(
                 provider.text_chat(prompt=prompt), timeout=timeout
@@ -719,7 +719,7 @@ def _sanitize_llm_output(raw):
     return ", ".join(tags[:25]) if tags else None
 
 
-def _fetch_json(url, timeout=8):
+def _fetch_json(url, timeout=2.5):
     """请求 JSON。测试时可替换此函数，避免真实网络。"""
     request = urllib.request.Request(
         url,
@@ -880,14 +880,31 @@ def lookup_name_sync(name, fetch=None):
     return tag
 
 
-def resolve_unknown_names(leftover, fetch=None):
+def _pure_name_query(raw, leftover):
+    """只在用户几乎整段都是角色/作品名时查库，避免普通画面描述被外网拖死。"""
+    leftover = str(leftover or "").strip()
+    if not leftover:
+        return []
+    compact_raw = re.sub(r"[^一-鿿ぁ-んァ-ン]+", "", str(raw or ""))
+    compact_left = re.sub(r"\s+", "", leftover)
+    if not compact_raw or compact_raw != compact_left:
+        return []
+    if not (2 <= len(compact_raw) <= 12):
+        return []
+    return [compact_raw]
+
+
+def resolve_unknown_names(leftover, fetch=None, raw=""):
     """把残留短中文查成角色/作品标签，返回 (标签串, 仍未识别的残留)。"""
     leftover = str(leftover or "").strip()
     if not leftover:
         return "", ""
     found = []
     remaining = leftover
-    for name in _name_candidates(leftover):
+    names = _pure_name_query(raw, leftover) or (
+        _name_candidates(leftover) if not raw else []
+    )
+    for name in names[:1]:
         tag = lookup_name_sync(name, fetch=fetch)
         if not tag:
             continue
@@ -913,13 +930,14 @@ async def to_tags(context, text, use_llm=True, fetch=None):
 
     lexicon_tags, leftover = translate_by_lexicon(raw)
     danbooru_tags = ""
-    if leftover:
+    if leftover and _pure_name_query(raw, leftover):
         try:
-            danbooru_tags, leftover = await asyncio.to_thread(
-                resolve_unknown_names, leftover, fetch
+            danbooru_tags, leftover = await asyncio.wait_for(
+                asyncio.to_thread(resolve_unknown_names, leftover, fetch, raw),
+                timeout=3,
             )
         except Exception as exc:
-            logger.debug(f"[叶子的逼] 角色查询线程失败: {exc}")
+            logger.debug(f"[叶子的逼] 角色查询跳过: {exc}")
 
     merged = ", ".join(_dedupe_tags(lexicon_tags, danbooru_tags))
 

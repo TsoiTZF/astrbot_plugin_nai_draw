@@ -1,7 +1,7 @@
 """中文转标签模块的单元测试。
 
-覆盖词典命中、长词优先、去重、虚词剥离、残留识别、词典与 LLM 合并、
-LLM 输出清洗与降级路径。LLM 部分用桩对象模拟，不产生真实网络请求。
+覆盖词典命中、长词优先、去重、虚词剥离、残留识别、Danbooru 角色查询、
+词典与 LLM 合并、LLM 输出清洗与降级路径。网络和 LLM 均用桩对象模拟。
 """
 
 import asyncio
@@ -21,13 +21,19 @@ _fake_root.api = _fake_api
 sys.modules.setdefault("astrbot", _fake_root)
 sys.modules.setdefault("astrbot.api", _fake_api)
 
+import translator as translator_mod  # noqa: E402
 from translator import (  # noqa: E402
     LEXICON,
+    _LOOKUP_CACHE,
     _sanitize_llm_output,
     contains_chinese,
+    resolve_unknown_names,
     to_tags,
     translate_by_lexicon,
 )
+
+# 默认切断真实 Danbooru 请求，避免测试依赖外网。
+translator_mod._fetch_json = lambda url, timeout=8: []
 
 _failures = []
 
@@ -254,6 +260,49 @@ def test_to_tags():
         # 空输入
         tags, note = await to_tags(None, "", use_llm=False)
         check(tags == "", "空输入返回空")
+
+        # 词典没有的角色名走 Danbooru 别名查询，不依赖手写词条
+        _LOOKUP_CACHE.clear()
+
+        def fake_fetch(url, timeout=8):
+            if "wiki_pages.json" in url and "search%5Bother_names_match%5D" in url:
+                return [
+                    {
+                        "title": "yae_miko",
+                        "other_names": ["八重神子", "神子"],
+                    }
+                ]
+            if "autocomplete.json" in url:
+                return []
+            if "tags.json" in url:
+                return [{"name": "yae_miko", "post_count": 90000, "category": 4}]
+            raise AssertionError(f"未预期的查询: {url}")
+
+        tags, leftover = resolve_unknown_names("八重神子", fetch=fake_fetch)
+        check("yae miko" in tags, "未知角色名可查 Danbooru wiki")
+        check(leftover == "", "查到角色后无残留")
+
+        tags, leftover = resolve_unknown_names("量子纠缠矩阵", fetch=fake_fetch)
+        check(tags == "", "不像角色名的长词不拿去查库")
+        check("量子纠缠矩阵" in leftover, "非角色残留保留给后续 LLM")
+
+        class GuardProvider(FakeProvider):
+            async def text_chat(self, prompt=""):
+                raise AssertionError("Danbooru 已命中时不应调用 LLM")
+
+        ctx = FakeContext(GuardProvider(reply="should not run"))
+        tags, note = await to_tags(
+            ctx, "八重神子", use_llm=True, fetch=fake_fetch
+        )
+        check("yae miko" in tags, "单发未知角色名走 Danbooru 查询")
+        check(note == "", "Danbooru 命中后不报翻译失败")
+
+        def boom_fetch(url, timeout=8):
+            raise TimeoutError("模拟外网超时")
+
+        _LOOKUP_CACHE.clear()
+        tags, leftover = resolve_unknown_names("八重神子", fetch=boom_fetch)
+        check(tags == "" and leftover == "八重神子", "查询失败时降级不阻断")
 
     asyncio.run(run())
 

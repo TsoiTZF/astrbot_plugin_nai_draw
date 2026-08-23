@@ -103,7 +103,7 @@
     "llm_translate": {
         "description": "中文智能翻译",
         "type": "bool",
-        "hint": "开启后，内置词典未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签，并与词典结果合并。关闭则仅用词典，未识别部分被忽略。",
+        "hint": "开启后，词典和 Danbooru 都未覆盖的中文会交给 AstrBot 的 LLM 转成 danbooru 标签并合并。关闭则跳过 LLM，角色名仍可查 Danbooru。",
         "default": true
     },
     "cover_dir": {

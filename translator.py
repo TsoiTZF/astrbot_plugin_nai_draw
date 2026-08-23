@@ -1,15 +1,21 @@
 """中文自然语言转 danbooru 标签。
 
 NAI 只认英文 danbooru 标签，中文描述直接送入基本无效。
-采用两层策略：
+采用三层策略：
 
-1. 词典层：常见描述按从左到右最长匹配查表，零成本、离线可用、结果稳定。
-2. LLM 层：词典未覆盖的剩余中文交给 AstrBot 的 LLM provider 转换，再与词典结果合并。
+1. 词典层：常见描述和高频角色按从左到右最长匹配查表，零成本、离线可用。
+2. Danbooru 层：词典未覆盖的短中文按角色/作品别名查询官方 wiki 与自动补全。
+3. LLM 层：仍未覆盖的部分交给 AstrBot 的 LLM provider，再与前两层结果合并。
 
-LLM 不可用时降级为仅词典结果，不阻断出图。
+任一层失败都不阻断出图，能转多少转多少。
 """
 
+import asyncio
+import json
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 
 from astrbot.api import logger
@@ -499,6 +505,17 @@ for _key in _SORTED_KEYS:
     _KEYS_BY_FIRST[_key[0]].append(_key)
 _SORTED_STOPWORDS = sorted(STOPWORDS, key=len, reverse=True)
 
+DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
+DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
+DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
+DANBOORU_UA = (
+    "astrbot_plugin_nai_draw/1.7.3 "
+    "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
+)
+_LOOKUP_CACHE = {}
+_LOOKUP_CACHE_LIMIT = 256
+_NAME_TOKEN_RE = re.compile(r"[一-鿿ぁ-んァ-ン]{2,12}")
+
 LLM_INSTRUCTION = (
     "你是 danbooru 标签转换器。把用户的中文画面描述转成英文 danbooru 标签。\n"
     "规则：\n"
@@ -639,8 +656,6 @@ async def translate_by_llm(context, text, timeout=30):
 
         prompt = LLM_INSTRUCTION.format(text=text)
         if hasattr(provider, "text_chat"):
-            import asyncio
-
             response = await asyncio.wait_for(
                 provider.text_chat(prompt=prompt), timeout=timeout
             )
@@ -704,11 +719,190 @@ def _sanitize_llm_output(raw):
     return ", ".join(tags[:25]) if tags else None
 
 
-async def to_tags(context, text, use_llm=True):
+def _fetch_json(url, timeout=8):
+    """请求 JSON。测试时可替换此函数，避免真实网络。"""
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": DANBOORU_UA,
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+    return json.loads(raw)
+
+
+def _cache_get(name):
+    if name in _LOOKUP_CACHE:
+        return True, _LOOKUP_CACHE[name]
+    return False, None
+
+
+def _cache_set(name, value):
+    if name in _LOOKUP_CACHE:
+        _LOOKUP_CACHE[name] = value
+        return
+    if len(_LOOKUP_CACHE) >= _LOOKUP_CACHE_LIMIT:
+        _LOOKUP_CACHE.pop(next(iter(_LOOKUP_CACHE)))
+    _LOOKUP_CACHE[name] = value
+
+
+def _tag_from_title(title):
+    text = str(title or "").strip().replace("_", " ")
+    if not text:
+        return None
+    prefix = text.split(":", 1)[0].lower()
+    if prefix in {"help", "howto", "api", "tag group", "list of"}:
+        return None
+    if text.lower().startswith("list of "):
+        return None
+    return text
+
+
+def _name_candidates(leftover):
+    """从残留中文里抽出像角色名/作品名的短词，避免整句去查库。"""
+    tokens = [part for part in str(leftover or "").split() if part]
+    names = []
+    for token in tokens:
+        if not _NAME_TOKEN_RE.fullmatch(token):
+            continue
+        # 两字名只在整段残留就是它时查询，避免把「量子 纠缠」拆去乱搜。
+        if len(token) >= 3 or len(tokens) == 1:
+            names.append(token)
+    if names:
+        return names[:3]
+    compact = re.sub(r"\s+", "", leftover or "")
+    if _NAME_TOKEN_RE.fullmatch(compact):
+        return [compact]
+    return []
+
+
+def _lookup_autocomplete(name, fetch):
+    """Danbooru 自动补全会按 other_names 搜中文，但响应里通常不带回中文别名。"""
+    query = urllib.parse.urlencode(
+        {
+            "search[query]": name,
+            "search[type]": "tag",
+            "limit": 10,
+        }
+    )
+    data = fetch(f"{DANBOORU_AUTOCOMPLETE}?{query}")
+    if not isinstance(data, list):
+        return None
+    best = None
+    best_score = -1
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        try:
+            category = int(item.get("category"))
+        except (TypeError, ValueError):
+            continue
+        if category not in {3, 4}:
+            continue
+        value = str(item.get("value") or item.get("label") or "").strip()
+        tag = _tag_from_title(value)
+        if not tag:
+            continue
+        try:
+            posts = int(item.get("post_count") or 0)
+        except (TypeError, ValueError):
+            posts = 0
+        # 角色优先于作品；官方补全已经按别名排过序。
+        score = posts + (1_000_000 if category == 4 else 0)
+        if score > best_score:
+            best_score = score
+            best = tag
+    return best
+
+
+def _lookup_wiki(name, fetch):
+    query = urllib.parse.urlencode(
+        {
+            "search[other_names_match]": name,
+            "limit": 8,
+        }
+    )
+    data = fetch(f"{DANBOORU_WIKI}?{query}")
+    if not isinstance(data, list):
+        return None
+    exact = []
+    for page in data:
+        if not isinstance(page, dict):
+            continue
+        other_names = page.get("other_names") or []
+        if not isinstance(other_names, list) or name not in other_names:
+            continue
+        tag = _tag_from_title(page.get("title"))
+        if tag:
+            exact.append(tag)
+    if not exact:
+        return None
+    if len(exact) == 1:
+        return exact[0]
+    scored = []
+    for tag in exact[:3]:
+        posts = 0
+        try:
+            query = urllib.parse.urlencode(
+                {"search[name]": tag.replace(" ", "_"), "limit": 1}
+            )
+            payload = fetch(f"{DANBOORU_TAGS}?{query}")
+            if isinstance(payload, list) and payload:
+                posts = int(payload[0].get("post_count") or 0)
+        except Exception:
+            posts = 0
+        scored.append((posts, len(tag.split()), tag))
+    scored.sort(reverse=True)
+    return scored[0][2]
+
+
+def lookup_name_sync(name, fetch=None):
+    """把中文角色/作品名查成 danbooru 标签，查不到返回空串。"""
+    token = str(name or "").strip()
+    if not token:
+        return ""
+    hit, cached = _cache_get(token)
+    if hit:
+        return cached
+    fetch = fetch or _fetch_json
+    tag = ""
+    try:
+        tag = _lookup_wiki(token, fetch) or _lookup_autocomplete(token, fetch) or ""
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        logger.debug(f"[叶子的逼] Danbooru 角色查询失败: {exc}")
+        tag = ""
+    except Exception as exc:
+        logger.debug(f"[叶子的逼] Danbooru 角色查询异常: {exc}")
+        tag = ""
+    _cache_set(token, tag)
+    return tag
+
+
+def resolve_unknown_names(leftover, fetch=None):
+    """把残留短中文查成角色/作品标签，返回 (标签串, 仍未识别的残留)。"""
+    leftover = str(leftover or "").strip()
+    if not leftover:
+        return "", ""
+    found = []
+    remaining = leftover
+    for name in _name_candidates(leftover):
+        tag = lookup_name_sync(name, fetch=fetch)
+        if not tag:
+            continue
+        found.append(tag)
+        remaining = remaining.replace(name, ",")
+    leftover_cn = _strip_stopwords("".join(re.findall(r"[一-鿿]+", remaining)))
+    return ", ".join(_dedupe_tags(*found)), leftover_cn
+
+
+async def to_tags(context, text, use_llm=True, fetch=None):
     """把用户输入转为标签串，返回 (标签, 说明)。
 
-    纯英文输入直接返回。中文先走词典最长匹配；若仍有画面意义的残留，
-    再把整句交给 LLM，并与词典结果合并，避免 LLM 漏掉已经稳定命中的词。
+    纯英文输入直接返回。中文先走词典，再查 Danbooru 角色/作品别名；
+    仍有画面意义的残留时才把整句交给 LLM，并与前两层结果合并。
+    fetch 仅测试注入，生产环境走官方 Danbooru JSON。
     """
     raw = str(text or "").strip()
     if not raw:
@@ -718,15 +912,24 @@ async def to_tags(context, text, use_llm=True):
         return raw, ""
 
     lexicon_tags, leftover = translate_by_lexicon(raw)
+    danbooru_tags = ""
+    if leftover:
+        try:
+            danbooru_tags, leftover = await asyncio.to_thread(
+                resolve_unknown_names, leftover, fetch
+            )
+        except Exception as exc:
+            logger.debug(f"[叶子的逼] 角色查询线程失败: {exc}")
+
+    merged = ", ".join(_dedupe_tags(lexicon_tags, danbooru_tags))
 
     if use_llm and leftover:
         llm_tags = await translate_by_llm(context, raw)
         if llm_tags:
-            merged = ", ".join(_dedupe_tags(lexicon_tags, llm_tags))
-            return merged, "已智能翻译"
+            return ", ".join(_dedupe_tags(merged, llm_tags)), "已智能翻译"
 
-    if leftover and lexicon_tags:
-        return lexicon_tags, f"未识别部分已忽略：{leftover}"
-    if not lexicon_tags:
+    if leftover and merged:
+        return merged, f"未识别部分已忽略：{leftover}"
+    if not merged:
         return "", "未能识别中文描述，建议改用英文标签或开启中文智能翻译"
-    return lexicon_tags, ""
+    return merged, ""

@@ -1,26 +1,26 @@
 /**
- * 暗房绘台 (Darkroom Studio) - 极简黑曜石驱动脚本
+ * 绘台 (Atelier Studio) - 前端核心驱动
  * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
 // 灵感画面库预置
 const INSPIRATIONS = [
-  "雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影",
-  "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光，精致五官，唯美仙侠",
-  "赛博朋克机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5渲染，光线追踪",
-  "日系水彩透明感，夏日微风，JK制服少女，向日葵花海，柔和逆光，治愈唯美",
-  "深海幽蓝幻境，漂浮发丝，发光水母，梦幻水波倒影，空灵少女，精致光斑",
-  "复古洛丽塔洋装，红酒玫瑰，哥特华丽少女，精致蕾丝发带，微光暗调，厚涂油画",
-  "星际战舰舰桥，星云璀璨，星际指挥官少女，高科技战术目镜，全息投影光辉",
+  "长发少女，夜雨旗袍，侧光，看着镜头，唯美光影",
+  "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光",
+  "赛博机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5",
+  "日系水彩透明感，夏日微风，JK制服少女，向日葵花海",
+  "深海幽蓝幻境，漂浮发丝，发光水母，梦幻水波倒影",
+  "复古洛丽塔洋装，红酒玫瑰，哥特华丽少女，微光暗调",
+  "星际战舰舰桥，星云璀璨，星际指挥官少女，全息投影",
 ];
 
 function createFallbackBridge() {
-  const message = "请在 AstrBot 插件详情页打开暗房绘台";
+  const message = "请在 AstrBot 插件详情页打开绘台";
   const fail = async () => {
     throw new Error(message);
   };
   return {
-    ready: async () => ({ isDark: true, pageTitle: "暗房绘台" }),
+    ready: async () => ({ isDark: true, pageTitle: "绘台" }),
     apiGet: async (endpoint) => {
       if (endpoint !== "bootstrap") {
         throw new Error(message);
@@ -94,7 +94,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-pill"),
+  artistChips: document.querySelectorAll(".artist-chip"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -102,7 +102,6 @@ const els = {
   stegoPassword: document.getElementById("stego-password"),
   drawButton: document.getElementById("draw-button"),
   drawSpinner: document.getElementById("draw-spinner"),
-  drawBtnIcon: document.getElementById("draw-btn-icon"),
   drawBtnText: document.getElementById("draw-btn-text"),
   formHint: document.getElementById("form-hint"),
   presetGrid: document.getElementById("preset-grid"),
@@ -129,8 +128,8 @@ const els = {
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
   // 导航切换
-  tabs: document.querySelectorAll(".segment-btn"),
-  tabPanels: document.querySelectorAll(".tab-pane"),
+  tabs: document.querySelectorAll(".nav-link"),
+  tabPanels: document.querySelectorAll(".atelier-pane"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -169,20 +168,19 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `obsidian-toast ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `atelier-toast ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     els.toast.hidden = true;
-  }, 4500);
+  }, 4000);
 }
 
 function setBusy(busy) {
   state.isBusy = busy;
   els.drawButton.disabled = busy;
   els.drawSpinner.hidden = !busy;
-  if (els.drawBtnIcon) els.drawBtnIcon.style.display = busy ? "none" : "block";
-  if (els.drawBtnText) els.drawBtnText.textContent = busy ? "正在渲染生成中..." : "立即渲染生成";
+  if (els.drawBtnText) els.drawBtnText.textContent = busy ? "渲染中..." : "出图";
 }
 
 function dataUrl(image) {
@@ -216,23 +214,23 @@ function setupTabs() {
   });
 }
 
-// 渲染画风预设矩阵
+// 渲染画风预设网格
 function renderPresets(presets) {
   els.presetGrid.replaceChildren();
   for (const item of presets) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `preset-chip-lux ${item.key === state.preset ? "active" : ""}`;
+    card.className = `preset-pill-btn ${item.key === state.preset ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
     const seqSpan = document.createElement("span");
-    seqSpan.className = "preset-id-tag";
+    seqSpan.className = "preset-index";
     seqSpan.textContent = `#${item.number}`;
 
     const titleSpan = document.createElement("span");
-    titleSpan.className = "preset-name-lux";
+    titleSpan.className = "preset-name";
     titleSpan.textContent = item.label.split("（")[0];
     card.title = item.label;
 
@@ -242,7 +240,7 @@ function renderPresets(presets) {
     card.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-chip-lux").forEach((c) => {
+      els.presetGrid.querySelectorAll(".preset-pill-btn").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -253,32 +251,32 @@ function renderPresets(presets) {
   }
 }
 
-// 渲染画幅尺寸选择矩阵
+// 渲染画幅尺寸选择网格
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `size-chip-lux ${item.key === state.size ? "active" : ""}`;
+    card.className = `size-pill-btn ${item.key === state.size ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "size-name-lux";
+    nameSpan.className = "size-name";
     nameSpan.textContent = item.label;
 
-    const resSpan = document.createElement("span");
-    resSpan.className = "size-res-lux";
-    resSpan.textContent = item.hint;
+    const hintSpan = document.createElement("span");
+    hintSpan.className = "size-hint";
+    hintSpan.textContent = item.hint;
 
     card.appendChild(nameSpan);
-    card.appendChild(resSpan);
+    card.appendChild(hintSpan);
 
     card.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-chip-lux").forEach((c) => {
+      els.sizeRow.querySelectorAll(".size-pill-btn").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -299,8 +297,8 @@ function renderGallery(items) {
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-hint-text";
-    emptyNotice.textContent = "档案库暂无历史成图。在左侧描述画面后点击渲染即可自动归档。";
+    emptyNotice.className = "drop-subtext";
+    emptyNotice.textContent = "档案库暂无历史成图。";
     els.gallery.appendChild(emptyNotice);
     return;
   }
@@ -359,10 +357,10 @@ function renderGallery(items) {
             negative: "—",
           });
           els.tabs[0].click();
-          showToast(`已在主巨幕中载入 ${item.name}`);
+          showToast(`已载入 ${item.name}`);
         }
       } catch (err) {
-        showToast(`载入历史作品失败: ${errorMessage(err)}`, "error");
+        showToast(`载入失败: ${errorMessage(err)}`, "error");
       }
     });
 
@@ -380,8 +378,8 @@ function renderCovers(items) {
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-hint-text";
-    emptyNotice.textContent = "载体库暂无图片。拖拽图片至上方磁吸区或点击上传。";
+    emptyNotice.className = "drop-subtext";
+    emptyNotice.textContent = "载体库暂无图片。";
     els.covers.appendChild(emptyNotice);
     return;
   }
@@ -427,7 +425,7 @@ function renderCovers(items) {
       try {
         const res = await apiPost("covers/delete", { name: item.name });
         renderCovers(res.covers);
-        showToast("已成功移除载体图片");
+        showToast("已删除载体图片");
       } catch (err) {
         showToast(`删除失败: ${errorMessage(err)}`, "error");
       }
@@ -454,8 +452,8 @@ function displayResultOnCanvas(imageObj, meta) {
 
   els.sheetPreset.textContent = meta.preset_label || meta.preset || "—";
   els.sheetSize.textContent = meta.size || "—";
-  els.sheetNsfw.textContent = meta.nsfw ? "开启" : "关闭";
-  els.sheetFace.textContent = meta.face_variation ? "启用" : "禁用";
+  els.sheetNsfw.textContent = meta.nsfw ? "NSFW" : "SFW";
+  els.sheetFace.textContent = meta.face_variation ? "脸型增强" : "原脸型";
   els.sheetPrompt.textContent = meta.prompt || "—";
   els.sheetNegative.textContent = meta.negative || "—";
 
@@ -485,8 +483,8 @@ async function bootstrap() {
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
 
-    els.apiStatus.textContent = state.configured ? "就绪在线" : "未配置密钥";
-    els.statusDot.className = `pulse-dot ${state.configured ? "ready" : "error"}`;
+    els.apiStatus.textContent = state.configured ? "就绪" : "未配置";
+    els.statusDot.className = `status-orb ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -502,8 +500,8 @@ async function bootstrap() {
     const activeSizeObj = state.sizes.find((s) => s.key === state.size);
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
-    els.apiStatus.textContent = "未连接";
-    els.statusDot.className = "pulse-dot error";
+    els.apiStatus.textContent = "离线";
+    els.statusDot.className = "status-orb error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -524,14 +522,14 @@ function setupEventListeners() {
       const idx = Math.floor(Math.random() * INSPIRATIONS.length);
       els.prompt.value = INSPIRATIONS[idx];
       els.prompt.focus();
-      showToast("已注入灵感画面！");
+      showToast("已注入灵感");
     });
   }
 
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".tag-capsule");
+      const tag = e.target.closest(".tag-pill");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;
@@ -542,7 +540,7 @@ function setupEventListeners() {
         els.prompt.value = tagContent;
       }
       els.prompt.focus();
-      showToast(`已追加灵感：${tag.textContent.trim()}`);
+      showToast(`已追加：${tag.textContent.trim()}`);
     });
   }
 
@@ -560,7 +558,7 @@ function setupEventListeners() {
         els.artists.value = artist;
       }
       els.artists.focus();
-      showToast(`已追加画师：${artist}`);
+      showToast(`已添加画师：${artist}`);
     });
   });
 
@@ -590,18 +588,18 @@ function setupEventListeners() {
   els.btnCopyPrompt.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.sheetPrompt.textContent);
-      showToast("已复制正面标签到剪贴板");
+      showToast("已复制正面标签");
     } catch {
-      showToast("复制失败，请手动选取", "error");
+      showToast("复制失败", "error");
     }
   });
 
   els.btnCopyNegative.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.sheetNegative.textContent);
-      showToast("已复制负面标签到剪贴板");
+      showToast("已复制负面标签");
     } catch {
-      showToast("复制失败，请手动选取", "error");
+      showToast("复制失败", "error");
     }
   });
 
@@ -612,13 +610,13 @@ function setupEventListeners() {
 
     const promptVal = els.prompt.value.trim();
     if (!promptVal) {
-      showToast("请填写画面构想后再出图", "error");
+      showToast("请填写画面描述", "error");
       els.prompt.focus();
       return;
     }
 
     setBusy(true);
-    els.formHint.textContent = "正在转译中文并向 NovelAI 4.5 请求渲染...";
+    els.formHint.textContent = "正在转译并请求渲染...";
 
     try {
       const payload = {
@@ -646,12 +644,12 @@ function setupEventListeners() {
       }
 
       els.tabs[0].click();
-      showToast("渲染完成，杰作已呈现！");
+      showToast("出图完成");
     } catch (err) {
-      showToast(`渲染失败: ${errorMessage(err)}`, "error");
+      showToast(`出图失败: ${errorMessage(err)}`, "error");
     } finally {
       setBusy(false);
-      els.formHint.textContent = "中文将由智能翻译引擎自动转为官方高质量英文标签";
+      els.formHint.textContent = "中文将由智能翻译转为官方标签";
     }
   });
 
@@ -679,7 +677,7 @@ function setupEventListeners() {
       if (typeof bridge.download === "function") {
         await bridge.download("download", { name: state.stegoName }, state.stegoName);
       } else {
-        showToast("下载隐写封包中...");
+        showToast("正在下载隐写封包...");
       }
     } catch (err) {
       showToast(`下载失败: ${errorMessage(err)}`, "error");
@@ -691,7 +689,7 @@ function setupEventListeners() {
     try {
       const res = await apiGet("gallery");
       renderGallery(res.gallery);
-      showToast("画廊档案库已刷新");
+      showToast("画廊已刷新");
     } catch (err) {
       showToast(`刷新失败: ${errorMessage(err)}`, "error");
     }
@@ -701,13 +699,13 @@ function setupEventListeners() {
   async function handleCoverUpload(file) {
     if (!file) return;
     try {
-      showToast(`正在上传载体图 ${file.name}...`);
+      showToast(`正在上传 ${file.name}...`);
       const res = await bridge.upload("covers/upload", file, {});
       const data = unwrap(res);
       renderCovers(data.covers);
-      showToast("载体图上传成功！");
+      showToast("上传成功");
     } catch (err) {
-      showToast(`上传载体失败: ${errorMessage(err)}`, "error");
+      showToast(`上传失败: ${errorMessage(err)}`, "error");
     }
   }
 
@@ -737,7 +735,7 @@ function setupEventListeners() {
   // 隐写拆封流程
   async function handleExtract(file) {
     if (!file) return;
-    els.extractHint.textContent = `正在解构拆封 ${file.name}...`;
+    els.extractHint.textContent = `正在拆封 ${file.name}...`;
     try {
       const password = els.extractPassword.value.trim();
       await apiPost("extract/prepare", { password });
@@ -748,13 +746,13 @@ function setupEventListeners() {
         const url = dataUrl(data.image);
         els.extractPreviewImg.src = url;
         els.extractResultPanel.hidden = false;
-        els.extractHint.textContent = "拆封成功，已成功还原生成原图！";
-        showToast("隐写原图还原成功！");
+        els.extractHint.textContent = "拆封成功";
+        showToast("拆封成功");
 
         els.btnDownloadExtracted.onclick = () => {
           const link = document.createElement("a");
           link.href = url;
-          link.download = data.name || "extracted_masterpiece.png";
+          link.download = data.name || "extracted.png";
           link.click();
         };
       }

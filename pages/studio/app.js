@@ -1,12 +1,12 @@
 /**
- * 绘台 (Studio) - 极夜星云黑曜石与琉璃微晶核心驱动脚本
+ * 绘台 (Studio) - 黑金奢感高定核心驱动
  * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
-// 灵感示例画面库
+// 示例灵感画面库
 const SAMPLES = [
-  "雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影",
   "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光，精致五官，唯美仙侠",
+  "雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影",
   "赛博朋克机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5渲染，光线追踪",
   "日系水彩透明感，夏日微风，JK制服少女，向日葵花海，柔和逆光，治愈唯美",
   "深海幽蓝幻境，漂浮发丝，发光水母，梦幻水波倒影，空灵少女，精致光斑",
@@ -94,7 +94,7 @@ const els = {
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
-  artistChips: document.querySelectorAll(".artist-glow-pill"),
+  artistChips: document.querySelectorAll(".artist-gold-pill"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -129,7 +129,7 @@ const els = {
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
   // 导航
-  tabs: document.querySelectorAll(".crystal-tab"),
+  tabs: document.querySelectorAll(".segment-btn"),
   tabPanels: document.querySelectorAll(".view-panel-tab"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
@@ -169,7 +169,7 @@ function errorMessage(error) {
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `crystal-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `royal-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
@@ -485,8 +485,8 @@ async function bootstrap() {
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
 
-    els.apiStatus.textContent = state.configured ? "就绪在线" : "未配置密钥";
-    els.statusDot.className = `status-beacon ${state.configured ? "ready" : "error"}`;
+    els.apiStatus.textContent = state.configured ? "服务就绪" : "未配置密钥";
+    els.statusDot.className = `beacon-pulse ${state.configured ? "ready" : "error"}`;
     if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -503,7 +503,7 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "未连接";
-    els.statusDot.className = "status-beacon error";
+    els.statusDot.className = "beacon-pulse error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -524,14 +524,14 @@ function setupEventListeners() {
       const idx = Math.floor(Math.random() * SAMPLES.length);
       els.prompt.value = SAMPLES[idx];
       els.prompt.focus();
-      showToast("已注入灵感画面！");
+      showToast("已注入精美灵感画面！");
     });
   }
 
   // 快捷灵感词点击追加
   if (els.quickTagsContainer) {
     els.quickTagsContainer.addEventListener("click", (e) => {
-      const tag = e.target.closest(".tag-glint-chip");
+      const tag = e.target.closest(".tag-gold-chip");
       if (!tag) return;
       const tagContent = tag.dataset.tag;
       if (!tagContent) return;

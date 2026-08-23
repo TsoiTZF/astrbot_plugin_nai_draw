@@ -3,48 +3,47 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>绘台 · NAI 4.5 创作者工坊</title>
+    <title>绘台 · 黑金高定艺术工坊</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <!-- 极夜星云背光场 -->
-    <div class="nebula-canvas-layer" aria-hidden="true">
-      <div class="nebula-beam beam-indigo"></div>
-      <div class="nebula-beam beam-cyan"></div>
-      <div class="nebula-beam beam-violet"></div>
-      <div class="prismatic-mesh"></div>
+    <!-- 黑金高定流光暗场 -->
+    <div class="royal-canvas-ambient" aria-hidden="true">
+      <div class="gold-beam beam-gold-1"></div>
+      <div class="gold-beam beam-gold-2"></div>
+      <div class="gold-luxe-mesh"></div>
     </div>
 
-    <div class="app-stage">
-      <!-- ================= 顶层高定浮空导航栏 ================= -->
-      <header class="studio-topbar">
-        <div class="topbar-brand-zone">
-          <div class="brand-crystal-badge">
-            <span class="crystal-icon">✦</span>
+    <div class="studio-app-wrapper">
+      <!-- ================= 顶层黑金高定浮空导航栏 ================= -->
+      <header class="studio-navbar">
+        <div class="nav-brand-group">
+          <div class="brand-crest-box">
+            <span class="crest-symbol">✦</span>
           </div>
-          <div class="brand-text-block">
-            <span class="brand-title">绘台</span>
-            <span class="brand-badge-pro">STUDIO PRO</span>
+          <div class="brand-typography">
+            <span class="brand-name">绘台</span>
+            <span class="brand-tier-badge">ROYAL EDITION</span>
           </div>
 
-          <div class="live-telemetry-tag" id="telemetry-pill">
-            <span class="status-beacon" id="status-dot"></span>
-            <span class="status-name" id="status-api">在线连接</span>
+          <div class="live-status-pill" id="telemetry-pill">
+            <span class="beacon-pulse" id="status-dot"></span>
+            <span class="beacon-text" id="status-api">服务就绪</span>
           </div>
         </div>
 
-        <!-- 居中胶囊导航分段器 -->
-        <nav class="nav-crystal-tabs" role="tablist">
-          <button type="button" class="crystal-tab active" data-tab="tab-canvas" role="tab" aria-selected="true">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <!-- 居中分段导航胶囊群 -->
+        <nav class="nav-segment-cluster" role="tablist">
+          <button type="button" class="segment-btn active" data-tab="tab-canvas" role="tab" aria-selected="true">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="3" y="3" width="18" height="18" rx="3"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             <span>创作画布</span>
           </button>
-          <button type="button" class="crystal-tab" data-tab="tab-history" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <button type="button" class="segment-btn" data-tab="tab-history" role="tab" aria-selected="false">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="2" y="2" width="20" height="20" rx="2.5"/>
               <line x1="7" y1="2" x2="7" y2="22"/>
               <line x1="17" y1="2" x2="17" y2="22"/>
@@ -55,17 +54,17 @@
               <line x1="17" y1="7" x2="22" y2="7"/>
             </svg>
             <span>画廊档案</span>
-            <span class="tab-num-bubble" id="tab-gallery-count">0</span>
+            <span class="counter-badge" id="tab-gallery-count">0</span>
           </button>
-          <button type="button" class="crystal-tab" data-tab="tab-covers" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <button type="button" class="segment-btn" data-tab="tab-covers" role="tab" aria-selected="false">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
             <span>载体图库</span>
-            <span class="tab-num-bubble" id="tab-cover-count">0</span>
+            <span class="counter-badge" id="tab-cover-count">0</span>
           </button>
-          <button type="button" class="crystal-tab" data-tab="tab-stego" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <button type="button" class="segment-btn" data-tab="tab-stego" role="tab" aria-selected="false">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="3" y="11" width="18" height="11" rx="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
@@ -73,9 +72,9 @@
           </button>
         </nav>
 
-        <div class="topbar-actions-zone">
-          <button type="button" id="btn-toggle-theme" class="btn-theme-switch" title="切换深色/浅色调色盘">
-            <svg class="theme-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <div class="nav-actions-group">
+          <button type="button" id="btn-toggle-theme" class="theme-switch-btn" title="切换深色/浅色高定主题">
+            <svg class="theme-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="5"/>
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
@@ -91,26 +90,26 @@
       </div>
 
       <!-- ================= 主体工作区网格 ================= -->
-      <div class="studio-main-grid">
+      <div class="studio-body-layout">
         <!-- 左侧：创作者控制坞 (Composer) -->
-        <aside class="composer-sidebar composer" aria-label="创作参数控制区">
-          <form id="draw-form" class="controls-stack">
+        <aside class="composer-sidebar composer" aria-label="创作参数面板">
+          <form id="draw-form" class="composer-form-flow">
             <!-- 1. 画面描述核心卡片 -->
-            <div class="crystal-card prompt-card-focus">
-              <div class="card-title-bar">
-                <label for="prompt" class="card-label">
-                  <span class="glow-symbol">✦</span>
+            <div class="luxe-card prompt-card-focus">
+              <div class="card-header-bar">
+                <label for="prompt" class="card-title-text">
+                  <span class="accent-glyph">✦</span>
                   <span>画面描述 / Prompt</span>
                 </label>
-                <div class="card-quick-actions">
-                  <button type="button" id="btn-random-prompt" class="pill-link-btn" title="注入灵感预设">
+                <div class="card-tool-actions">
+                  <button type="button" id="btn-random-prompt" class="gold-link-btn" title="注入精美灵感">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="mini-svg">
                       <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
                       <path d="M16 8h.01M8 8h.01M8 16h.01M16 16h.01M12 12h.01"/>
                     </svg>
                     <span>灵感示例</span>
                   </button>
-                  <button type="button" id="btn-clear-prompt" class="pill-link-btn">清空</button>
+                  <button type="button" id="btn-clear-prompt" class="gold-link-btn">清空</button>
                 </div>
               </div>
 
@@ -120,132 +119,132 @@
                   name="prompt"
                   rows="4"
                   required
-                  placeholder="在此描绘您的构想，例如：雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影..."
+                  placeholder="在此描绘画面构想，例如：黑金刺绣汉服，绝美少女，手持折扇，回眸微光，精致五官，电影级光影..."
                 ></textarea>
                 <div class="quick-tags-scroller" id="quick-tags-container">
-                  <button type="button" class="tag-glint-chip" data-tag="雨夜霓虹, 湿润发丝, 电影级光影">🌃 雨夜霓虹</button>
-                  <button type="button" class="tag-glint-chip" data-tag="白发红瞳, 绝美五官, 侧光特写">✨ 白发红瞳</button>
-                  <button type="button" class="tag-glint-chip" data-tag="古风旗袍, 刺绣金线, 柔美光晕">🌸 华美旗袍</button>
-                  <button type="button" class="tag-glint-chip" data-tag="赛博机能, 机械义肢, 发光线缆">⚡ 赛博机能</button>
-                  <button type="button" class="tag-glint-chip" data-tag="水下光斑, 漂浮长发, 梦幻水彩">🌊 梦幻水境</button>
+                  <button type="button" class="tag-gold-chip" data-tag="古风黑金汉服, 华美刺绣, 绝美少女, 柔美光晕">✨ 华美黑金</button>
+                  <button type="button" class="tag-gold-chip" data-tag="雨夜霓虹, 湿润发丝, 侧光特写, 电影级光影">🌃 雨夜霓虹</button>
+                  <button type="button" class="tag-gold-chip" data-tag="白发红瞳, 绝美五官, 侧光特写">✦ 白发红瞳</button>
+                  <button type="button" class="tag-gold-chip" data-tag="赛博机能, 机械义肢, 发光线缆">⚡ 赛博机能</button>
+                  <button type="button" class="tag-gold-chip" data-tag="水下光斑, 漂浮长发, 梦幻水彩">🌊 梦幻水境</button>
                 </div>
               </div>
             </div>
 
             <!-- 2. 艺术风格预设卡片矩阵 -->
-            <div class="crystal-card">
-              <div class="card-title-bar">
-                <span class="card-label">
-                  <span class="glow-symbol">◈</span>
-                  <span>艺术画风预设</span>
+            <div class="luxe-card">
+              <div class="card-header-bar">
+                <span class="card-title-text">
+                  <span class="accent-glyph">◈</span>
+                  <span>艺术风格预设</span>
                 </span>
-                <span class="highlight-val" id="preset-summary">老五样</span>
+                <span class="gold-highlight-val" id="preset-summary">老五样</span>
               </div>
               <div class="preset-matrix-grid" id="preset-grid" role="radiogroup" aria-label="画风预设选择"></div>
             </div>
 
             <!-- 3. 画幅尺寸矩阵 -->
-            <div class="crystal-card">
-              <div class="card-title-bar">
-                <span class="card-label">
-                  <span class="glow-symbol">◱</span>
+            <div class="luxe-card">
+              <div class="card-header-bar">
+                <span class="card-title-text">
+                  <span class="accent-glyph">◱</span>
                   <span>画幅尺寸规格</span>
                 </span>
-                <span class="highlight-val" id="size-summary">竖图</span>
+                <span class="gold-highlight-val" id="size-summary">竖图</span>
               </div>
               <div class="size-matrix-grid" id="size-row" role="radiogroup" aria-label="画幅比例选择"></div>
             </div>
 
             <!-- 4. 画师风格叠加 -->
-            <div class="crystal-card">
-              <div class="card-title-bar">
-                <label for="artists" class="card-label">
-                  <span class="glow-symbol">🖋</span>
-                  <span>画师标签叠加</span>
+            <div class="luxe-card">
+              <div class="card-header-bar">
+                <label for="artists" class="card-title-text">
+                  <span class="accent-glyph">🖋</span>
+                  <span>画师风格叠加</span>
                 </label>
-                <span class="subtle-tip">支持 NAI 权重括号</span>
+                <span class="muted-tip">支持 NAI 权重括号</span>
               </div>
-              <div class="crystal-input-frame">
+              <div class="luxe-input-frame">
                 <input
                   id="artists"
                   name="artists"
                   type="text"
-                  class="crystal-input"
+                  class="luxe-text-input"
                   placeholder="例如：artist:wlop, {artist:guweiz}, 1.2::artist:fuzichoco::"
                   autocomplete="off"
                 />
               </div>
               <div class="artist-chips-lane">
-                <button type="button" class="artist-glow-pill" data-artist="artist:wlop">+ wlop</button>
-                <button type="button" class="artist-glow-pill" data-artist="artist:guweiz">+ guweiz</button>
-                <button type="button" class="artist-glow-pill" data-artist="artist:fuzichoco">+ fuzichoco</button>
-                <button type="button" class="artist-glow-pill" data-artist="artist:mika pikazo">+ Mika</button>
-                <button type="button" class="artist-glow-pill" data-artist="artist:ask (artist)">+ Ask</button>
-                <button type="button" class="artist-glow-pill" data-artist="artist:tiv">+ Tiv</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:wlop">+ wlop</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:guweiz">+ guweiz</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:fuzichoco">+ fuzichoco</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:mika pikazo">+ Mika</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:ask (artist)">+ Ask</button>
+                <button type="button" class="artist-gold-pill" data-artist="artist:tiv">+ Tiv</button>
               </div>
             </div>
 
             <!-- 5. 高级开关卡片组 -->
-            <div class="crystal-card switches-cluster-card">
+            <div class="luxe-card switches-cluster-card">
               <label class="switch-row-item">
                 <div class="switch-info-col">
-                  <span class="switch-lead">NSFW 模式</span>
-                  <span class="switch-desc">解除内置敏感词压制</span>
+                  <span class="switch-main-title">NSFW 模式</span>
+                  <span class="switch-sub-title">解除内置敏感词压制</span>
                 </div>
-                <div class="aurora-switch">
+                <div class="gold-switch-toggle">
                   <input id="nsfw" type="checkbox" />
-                  <span class="switch-slider"></span>
+                  <span class="gold-toggle-track"></span>
                 </div>
               </label>
 
               <label class="switch-row-item">
                 <div class="switch-info-col">
-                  <span class="switch-lead">自动脸型增强</span>
-                  <span class="switch-desc">自动注入五官细节重绘</span>
+                  <span class="switch-main-title">自动脸型增强</span>
+                  <span class="switch-sub-title">自动注入五官立体细节重绘</span>
                 </div>
-                <div class="aurora-switch">
+                <div class="gold-switch-toggle">
                   <input id="face" type="checkbox" checked />
-                  <span class="switch-slider"></span>
+                  <span class="gold-toggle-track"></span>
                 </div>
               </label>
 
               <label class="switch-row-item">
                 <div class="switch-info-col">
-                  <span class="switch-lead">隐写伪装封包</span>
-                  <span class="switch-desc">成图嵌入随机载体伪装输出</span>
+                  <span class="switch-main-title">隐写伪装封包</span>
+                  <span class="switch-sub-title">成图嵌入随机载体伪装输出</span>
                 </div>
-                <div class="aurora-switch">
+                <div class="gold-switch-toggle">
                   <input id="stego" type="checkbox" />
-                  <span class="switch-slider"></span>
+                  <span class="gold-toggle-track"></span>
                 </div>
               </label>
             </div>
 
             <!-- 隐写密码字段 -->
-            <div class="crystal-card animate-slide" id="stego-password-field" hidden>
-              <div class="card-title-bar">
-                <label for="stego-password" class="card-label">
-                  <span class="glow-symbol">🔒</span>
+            <div class="luxe-card" id="stego-password-field" hidden>
+              <div class="card-header-bar">
+                <label for="stego-password" class="card-title-text">
+                  <span class="accent-glyph">🔒</span>
                   <span>封包提取密码</span>
                 </label>
-                <span class="subtle-tip">留空为无密码封装</span>
+                <span class="muted-tip">留空为无密码封装</span>
               </div>
-              <div class="crystal-input-frame">
+              <div class="luxe-input-frame">
                 <input
                   id="stego-password"
                   type="password"
-                  class="crystal-input"
+                  class="luxe-text-input"
                   placeholder="请设置提取密码（不保存于服务端）"
                   autocomplete="off"
                 />
               </div>
             </div>
 
-            <!-- 6. 核心精美炫酷出图主按钮 -->
+            <!-- 6. 核心黑金高定出图主按钮 -->
             <div class="submit-action-zone">
-              <button id="draw-button" type="submit" class="btn-aurora-render">
-                <div class="btn-aurora-glow-core"></div>
-                <div class="btn-inner-content">
+              <button id="draw-button" type="submit" class="btn-royal-render">
+                <div class="render-sheen-sweep"></div>
+                <div class="render-inner-stack">
                   <span class="btn-spinner" id="draw-spinner" hidden></span>
                   <svg id="draw-btn-icon" class="btn-sparkle-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -260,13 +259,13 @@
         </aside>
 
         <!-- 右侧主巨幕视口 (Workspace) -->
-        <main class="viewport-main-area workspace">
+        <main class="main-canvas-workspace workspace">
           <!-- 选项卡 1：主画布 -->
           <section id="tab-canvas" class="view-panel-tab active" role="tabpanel">
             <div class="canvas-theater-space" id="canvas-viewport">
               <!-- 空状态占位 -->
               <div class="canvas-ambient-empty" id="result-empty">
-                <div class="empty-sparkle-icon">✦</div>
+                <div class="empty-sparkle-gold">✦</div>
                 <p class="empty-text">在左侧构思画面并点击“立即渲染生成”</p>
               </div>
 
@@ -275,7 +274,7 @@
                 <img id="result-image" class="full-artwork-img" alt="当前生成作品" />
               </div>
 
-              <!-- 悬浮精美 Dynamic Island 浮岛参数栏 -->
+              <!-- 悬浮黑金高定 Dynamic Island 浮岛参数栏 -->
               <div class="floating-island-dock" id="result-dock" hidden>
                 <div class="island-main-row">
                   <div class="island-metrics" id="result-sheet">
@@ -355,7 +354,7 @@
                   <h2 class="subview-main-title">成图画廊档案库</h2>
                   <p class="subview-sub-title">点击任意历史作品可在主巨幕中即时重放与查看完整工程参数</p>
                 </div>
-                <button type="button" id="btn-refresh-gallery" class="btn-crystal-tool">
+                <button type="button" id="btn-refresh-gallery" class="btn-luxe-tool">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                     <polyline points="23 4 23 10 17 10"/>
                     <polyline points="1 20 1 14 7 14"/>
@@ -364,7 +363,7 @@
                   <span>刷新画廊</span>
                 </button>
               </div>
-              <div class="gallery-crystal-grid" id="gallery"></div>
+              <div class="gallery-royal-grid" id="gallery"></div>
             </div>
           </section>
 
@@ -376,7 +375,7 @@
                   <h2 class="subview-main-title">隐写载体图库</h2>
                   <p class="subview-sub-title">开启隐写出图时，将从图库中随机抽取一张载体进行像素无痕封装</p>
                 </div>
-                <label class="btn-crystal-tool btn-crystal-tool--accent">
+                <label class="btn-luxe-tool btn-luxe-tool--accent">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
@@ -387,7 +386,7 @@
               </div>
 
               <!-- 磁吸拖拽上传区 -->
-              <div class="drop-crystal-zone" id="cover-drop-zone">
+              <div class="drop-luxe-zone" id="cover-drop-zone">
                 <div class="drop-icon-sphere">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="drop-svg">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -400,7 +399,7 @@
                 <span id="cover-hint" hidden></span>
               </div>
 
-              <div class="covers-crystal-grid" id="covers"></div>
+              <div class="covers-royal-grid" id="covers"></div>
             </div>
           </section>
 
@@ -415,8 +414,8 @@
               </div>
 
               <div class="stego-workshop-split">
-                <div class="crystal-card stego-interactive-card">
-                  <div class="drop-crystal-zone" id="extract-drop-zone">
+                <div class="luxe-card stego-interactive-card">
+                  <div class="drop-luxe-zone" id="extract-drop-zone">
                     <div class="drop-icon-sphere">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="drop-svg">
                         <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -425,17 +424,17 @@
                     </div>
                     <h3 class="drop-main-title">拖拽原始隐写 PNG 到此处</h3>
                     <span class="drop-sub-spec">必须使用未经社交软件二次压缩的原始文件</span>
-                    <label class="btn-crystal-tool" style="margin-top: 16px;">
+                    <label class="btn-luxe-tool" style="margin-top: 16px;">
                       <span>选择本地文件</span>
                       <input id="extract-file" type="file" accept="image/png" hidden />
                     </label>
                   </div>
 
-                  <div class="crystal-input-frame" style="margin-top: 16px;">
+                  <div class="luxe-input-frame" style="margin-top: 16px;">
                     <input
                       id="extract-password"
                       type="password"
-                      class="crystal-input"
+                      class="luxe-text-input"
                       placeholder="若制图时设置了密码，在此输入（无密码留空）"
                       autocomplete="off"
                     />
@@ -445,7 +444,7 @@
                 </div>
 
                 <!-- 拆封还原预览区 -->
-                <div class="crystal-card stego-result-card" id="extract-result-panel" hidden>
+                <div class="luxe-card stego-result-card" id="extract-result-panel" hidden>
                   <div class="result-success-capsule">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                       <polyline points="20 6 9 17 4 12"/>
@@ -455,8 +454,8 @@
                   <div class="extracted-frame-box">
                     <img id="extract-preview-img" alt="拆封还原成图" />
                   </div>
-                  <button type="button" id="btn-download-extracted" class="btn-aurora-render" style="margin-top: 18px; width: 100%;">
-                    <div class="btn-inner-content">
+                  <button type="button" id="btn-download-extracted" class="btn-royal-render" style="margin-top: 18px; width: 100%;">
+                    <div class="render-inner-stack">
                       <span>📥 保存还原出的高清原图</span>
                     </div>
                   </button>
@@ -468,8 +467,8 @@
       </div>
     </div>
 
-    <!-- 全局琉璃 Toast 悬浮通知 -->
-    <div id="toast" class="crystal-toast-capsule" hidden role="status" aria-live="polite"></div>
+    <!-- 全局黑金 Toast 悬浮通知 -->
+    <div id="toast" class="royal-toast-capsule" hidden role="status" aria-live="polite"></div>
 
     <script type="module" src="./app.js"></script>
   </body>

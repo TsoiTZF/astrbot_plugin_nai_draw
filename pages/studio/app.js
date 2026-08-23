@@ -1,7 +1,18 @@
 /**
- * 暗房绘台 WebUI 核心业务与渲染脚本
- * 原生现代 ESM 架构，零外部依赖，极速响应
+ * 暗房绘台 (Darkroom Studio) - 旗舰交互与业务驱动系统
+ * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
+
+// 灵感词库预置
+const INSPIRATIONS = [
+  "雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影",
+  "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光，精致五官，唯美仙侠",
+  "赛博朋克机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5渲染，光线追踪",
+  "日系水彩透明感，夏日微风，JK制服少女，向日葵花海，柔和逆光，治愈唯美",
+  "深海幽蓝幻境，漂浮发丝，发光水母，梦幻水波倒影，空灵少女，精致光斑",
+  "复古洛丽塔洋装，红酒玫瑰，哥特华丽少女，精致蕾丝发带，微光暗调，厚涂油画",
+  "星际战舰舰桥，星云璀璨，星际指挥官少女，高科技战术目镜，全息投影光辉",
+];
 
 function createFallbackBridge() {
   const message = "请在 AstrBot 插件详情页打开暗房绘台";
@@ -65,9 +76,9 @@ const state = {
   isBusy: false,
 };
 
-// DOM 元素引用缓存
+// DOM 元素缓存
 const els = {
-  // 仪表盘遥测
+  // 顶部状态
   apiStatus: document.getElementById("status-api"),
   statusDot: document.getElementById("status-dot"),
   modelStatus: document.getElementById("status-model"),
@@ -76,11 +87,14 @@ const els = {
   tabGalleryCount: document.getElementById("tab-gallery-count"),
   tabCoverCount: document.getElementById("tab-cover-count"),
   
-  // 表单与交互
+  // 表单交互
   form: document.getElementById("draw-form"),
   prompt: document.getElementById("prompt"),
   btnClearPrompt: document.getElementById("btn-clear-prompt"),
+  btnRandomPrompt: document.getElementById("btn-random-prompt"),
+  quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
+  artistChips: document.querySelectorAll(".quick-artist-tag"),
   nsfw: document.getElementById("nsfw"),
   face: document.getElementById("face"),
   stego: document.getElementById("stego"),
@@ -96,7 +110,7 @@ const els = {
   presetSummary: document.getElementById("preset-summary"),
   sizeSummary: document.getElementById("size-summary"),
 
-  // 画布视口与巡检 Dock
+  // 画布主视口与 Dock
   canvasViewport: document.getElementById("canvas-viewport"),
   artworkFrame: document.getElementById("artwork-frame"),
   resultImage: document.getElementById("result-image"),
@@ -114,9 +128,9 @@ const els = {
   btnCopyPrompt: document.getElementById("btn-copy-prompt"),
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
-  // 导航选项卡
-  tabs: document.querySelectorAll(".segment-tab"),
-  tabPanels: document.querySelectorAll(".tab-panel"),
+  // 导航切换
+  tabs: document.querySelectorAll(".tab-pill"),
+  tabPanels: document.querySelectorAll(".tab-viewport-panel"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
   // 画廊与载体
@@ -126,7 +140,7 @@ const els = {
   coverFile: document.getElementById("cover-file"),
   coverDropZone: document.getElementById("cover-drop-zone"),
 
-  // 隐写拆封工坊
+  // 隐写拆封
   extractDropZone: document.getElementById("extract-drop-zone"),
   extractFile: document.getElementById("extract-file"),
   extractPassword: document.getElementById("extract-password"),
@@ -135,7 +149,7 @@ const els = {
   extractPreviewImg: document.getElementById("extract-preview-img"),
   btnDownloadExtracted: document.getElementById("btn-download-extracted"),
 
-  // 全局 Glass Toast
+  // 全局 Toast
   toast: document.getElementById("toast"),
 };
 
@@ -147,15 +161,15 @@ function unwrap(payload) {
 }
 
 function errorMessage(error) {
-  if (!error) return "未知请求错误";
+  if (!error) return "请求遇到异常";
   if (typeof error === "string") return error;
-  return error.message || "未知请求错误";
+  return error.message || "请求遇到异常";
 }
 
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `glass-toast ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `studio-toast-capsule ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
@@ -167,8 +181,8 @@ function setBusy(busy) {
   state.isBusy = busy;
   els.drawButton.disabled = busy;
   els.drawSpinner.hidden = !busy;
-  els.drawBtnIcon.hidden = busy;
-  els.drawBtnText.textContent = busy ? "正在渲染生成中..." : "立即渲染生成";
+  if (els.drawBtnIcon) els.drawBtnIcon.style.display = busy ? "none" : "block";
+  if (els.drawBtnText) els.drawBtnText.textContent = busy ? "正在渲染生成中..." : "立即渲染生成";
 }
 
 function dataUrl(image) {
@@ -183,7 +197,7 @@ async function apiPost(endpoint, body) {
   return unwrap(await bridge.apiPost(endpoint, body));
 }
 
-// 选项卡切换控制
+// 选项卡切换
 function setupTabs() {
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -208,27 +222,27 @@ function renderPresets(presets) {
   for (const item of presets) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `preset-card-pro ${item.key === state.preset ? "active" : ""}`;
+    card.className = `preset-chip-pro ${item.key === state.preset ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
-    const numSpan = document.createElement("span");
-    numSpan.className = "preset-num-badge";
-    numSpan.textContent = `#${item.number}`;
+    const seqSpan = document.createElement("span");
+    seqSpan.className = "preset-seq";
+    seqSpan.textContent = `#${item.number}`;
 
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "preset-name-pro";
-    nameSpan.textContent = item.label.split("（")[0];
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "preset-title-text";
+    titleSpan.textContent = item.label.split("（")[0];
     card.title = item.label;
 
-    card.appendChild(numSpan);
-    card.appendChild(nameSpan);
+    card.appendChild(seqSpan);
+    card.appendChild(titleSpan);
 
     card.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-card-pro").forEach((c) => {
+      els.presetGrid.querySelectorAll(".preset-chip-pro").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -239,32 +253,32 @@ function renderPresets(presets) {
   }
 }
 
-// 渲染画幅尺寸矩阵
+// 渲染画幅尺寸选择矩阵
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `size-card-pro ${item.key === state.size ? "active" : ""}`;
+    card.className = `size-chip-pro ${item.key === state.size ? "active" : ""}`;
     card.dataset.key = item.key;
     card.setAttribute("role", "radio");
     card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
 
-    const labelSpan = document.createElement("span");
-    labelSpan.className = "size-label-pro";
-    labelSpan.textContent = item.label;
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "size-name-text";
+    nameSpan.textContent = item.label;
 
-    const dimSpan = document.createElement("span");
-    dimSpan.className = "size-dim-pro";
-    dimSpan.textContent = item.hint;
+    const resSpan = document.createElement("span");
+    resSpan.className = "size-pixel-res";
+    resSpan.textContent = item.hint;
 
-    card.appendChild(labelSpan);
-    card.appendChild(dimSpan);
+    card.appendChild(nameSpan);
+    card.appendChild(resSpan);
 
     card.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-card-pro").forEach((c) => {
+      els.sizeRow.querySelectorAll(".size-chip-pro").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
@@ -275,17 +289,17 @@ function renderSizes(sizes) {
   }
 }
 
-// 渲染画廊缩略图瀑布流
+// 渲染画廊瀑布流
 function renderGallery(items) {
   state.gallery = items || [];
   const count = state.gallery.length;
-  els.galleryCount.textContent = count;
-  els.tabGalleryCount.textContent = count;
+  if (els.galleryCount) els.galleryCount.textContent = count;
+  if (els.tabGalleryCount) els.tabGalleryCount.textContent = count;
 
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-specs";
+    emptyNotice.className = "drop-sub-spec";
     emptyNotice.textContent = "档案库暂无历史成图。在左侧描述画面后点击渲染即可自动归档。";
     els.gallery.appendChild(emptyNotice);
     return;
@@ -293,10 +307,10 @@ function renderGallery(items) {
 
   for (const item of state.gallery) {
     const card = document.createElement("div");
-    card.className = "gallery-card-item";
+    card.className = "art-card-item";
 
     const img = document.createElement("img");
-    img.className = "gallery-card-item__thumb";
+    img.className = "art-card-item__thumb";
     img.alt = item.name;
     img.loading = "lazy";
 
@@ -315,14 +329,14 @@ function renderGallery(items) {
     }
 
     const meta = document.createElement("div");
-    meta.className = "gallery-card-item__meta";
+    meta.className = "art-card-item__meta";
 
     const presetName = document.createElement("span");
-    presetName.className = "gallery-card-item__preset";
+    presetName.className = "art-card-item__preset";
     presetName.textContent = item.preset || "成图";
 
     const timeSpan = document.createElement("span");
-    timeSpan.className = "gallery-card-item__time";
+    timeSpan.className = "art-card-item__time";
     timeSpan.textContent = new Date(item.mtime * 1000).toLocaleTimeString();
 
     meta.appendChild(presetName);
@@ -330,7 +344,6 @@ function renderGallery(items) {
     card.appendChild(img);
     card.appendChild(meta);
 
-    // 点击卡片：重放至主画布
     card.addEventListener("click", async () => {
       try {
         const res = await apiGet("preview", { name: item.name });
@@ -342,11 +355,11 @@ function renderGallery(items) {
             size: "自适应",
             nsfw: false,
             face_variation: true,
-            prompt: "（该历史作品提示词已归档）",
+            prompt: "（历史作品提示词已归档）",
             negative: "—",
           });
           els.tabs[0].click();
-          showToast(`已在主画布中载入 ${item.name}`);
+          showToast(`已在主巨幕中载入 ${item.name}`);
         }
       } catch (err) {
         showToast(`载入历史作品失败: ${errorMessage(err)}`, "error");
@@ -361,13 +374,13 @@ function renderGallery(items) {
 function renderCovers(items) {
   state.covers = items || [];
   const count = state.covers.length;
-  els.coverCount.textContent = count;
-  els.tabCoverCount.textContent = count;
+  if (els.coverCount) els.coverCount.textContent = count;
+  if (els.tabCoverCount) els.tabCoverCount.textContent = count;
 
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-specs";
+    emptyNotice.className = "drop-sub-spec";
     emptyNotice.textContent = "载体库暂无图片。拖拽图片至上方磁吸区或点击上传。";
     els.covers.appendChild(emptyNotice);
     return;
@@ -375,10 +388,10 @@ function renderCovers(items) {
 
   for (const item of state.covers) {
     const card = document.createElement("div");
-    card.className = "cover-card-item";
+    card.className = "cover-card-box";
 
     const img = document.createElement("img");
-    img.className = "cover-card-item__thumb";
+    img.className = "cover-card-box__thumb";
     img.alt = item.name;
     img.loading = "lazy";
 
@@ -397,16 +410,16 @@ function renderCovers(items) {
     }
 
     const foot = document.createElement("div");
-    foot.className = "cover-card-item__foot";
+    foot.className = "cover-card-box__foot";
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "cover-card-item__name";
+    nameSpan.className = "cover-card-box__name";
     nameSpan.textContent = item.name;
     nameSpan.title = item.name;
 
     const btnDel = document.createElement("button");
     btnDel.type = "button";
-    btnDel.className = "btn-del-cover-tag";
+    btnDel.className = "btn-del-action";
     btnDel.textContent = "删除";
     btnDel.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -470,8 +483,8 @@ async function bootstrap() {
     state.sizes = data.sizes || [];
 
     els.apiStatus.textContent = state.configured ? "就绪在线" : "未配置密钥";
-    els.statusDot.className = `status-dot ${state.configured ? "ready" : "error"}`;
-    els.modelStatus.textContent = data.model || "NAI 4.5";
+    els.statusDot.className = `pulse-beacon ${state.configured ? "ready" : "error"}`;
+    if (els.modelStatus) els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
 
@@ -487,7 +500,7 @@ async function bootstrap() {
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
     els.apiStatus.textContent = "未连接";
-    els.statusDot.className = "status-dot error";
+    els.statusDot.className = "pulse-beacon error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
@@ -500,6 +513,52 @@ function setupEventListeners() {
   els.btnClearPrompt.addEventListener("click", () => {
     els.prompt.value = "";
     els.prompt.focus();
+  });
+
+  // 随机灵感
+  if (els.btnRandomPrompt) {
+    els.btnRandomPrompt.addEventListener("click", () => {
+      const idx = Math.floor(Math.random() * INSPIRATIONS.length);
+      els.prompt.value = INSPIRATIONS[idx];
+      els.prompt.focus();
+      showToast("已注入随机灵感画面！");
+    });
+  }
+
+  // 快捷灵感词点击追加
+  if (els.quickTagsContainer) {
+    els.quickTagsContainer.addEventListener("click", (e) => {
+      const tag = e.target.closest(".inspire-pill");
+      if (!tag) return;
+      const tagContent = tag.dataset.tag;
+      if (!tagContent) return;
+      const currentVal = els.prompt.value.trim();
+      if (currentVal) {
+        els.prompt.value = `${currentVal}, ${tagContent}`;
+      } else {
+        els.prompt.value = tagContent;
+      }
+      els.prompt.focus();
+      showToast(`已追加灵感：${tag.textContent.trim()}`);
+    });
+  }
+
+  // 快捷画师标签追加
+  els.artistChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const artist = chip.dataset.artist;
+      if (!artist) return;
+      const currentVal = els.artists.value.trim();
+      if (currentVal) {
+        if (!currentVal.includes(artist)) {
+          els.artists.value = `${currentVal}, ${artist}`;
+        }
+      } else {
+        els.artists.value = artist;
+      }
+      els.artists.focus();
+      showToast(`已追加画师：${artist}`);
+    });
   });
 
   // 快捷出图：Ctrl + Enter / Cmd + Enter
@@ -556,7 +615,7 @@ function setupEventListeners() {
     }
 
     setBusy(true);
-    els.formHint.textContent = "● 正在转译中文并向 NovelAI 4.5 请求高清渲染...";
+    els.formHint.textContent = "正在转译中文并向 NovelAI 4.5 请求高清渲染...";
 
     try {
       const payload = {
@@ -589,7 +648,7 @@ function setupEventListeners() {
       showToast(`渲染失败: ${errorMessage(err)}`, "error");
     } finally {
       setBusy(false);
-      els.formHint.textContent = "● 中文描述将通过智能词典与 LLM 无损转译为官方高质量英文标签";
+      els.formHint.textContent = "中文将由智能翻译引擎自动转为官方高质量英文标签";
     }
   });
 

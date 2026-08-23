@@ -349,6 +349,9 @@ def test_page_files():
         and "inset: 0" in css.split(".ui-switch-toggle input")[1][:400],
         "开关点击层覆盖整个滑块",
     )
+    check('id="main-stage"' in html and 'id="history-filmstrip"' in html, "主舞台与胶片区有稳定节点")
+    check(".workbench-main-stage.is-waiting .history-filmstrip-section" in css, "等待生图时隐藏历史胶片")
+    check("is-waiting" in js and "setBusy" in js, "等待状态由出图忙碌开关控制")
     check(i18n.is_file(), "存在插件页中文 i18n")
 
 

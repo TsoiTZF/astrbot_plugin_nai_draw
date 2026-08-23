@@ -110,6 +110,8 @@ const els = {
   sizeSummary: document.getElementById("size-summary"),
 
   // 画布与主结果区
+  mainStage: document.getElementById("main-stage"),
+  historyFilmstrip: document.getElementById("history-filmstrip"),
   canvasViewport: document.getElementById("canvas-viewport"),
   artworkFrame: document.getElementById("artwork-frame"),
   resultImage: document.getElementById("result-image"),
@@ -199,6 +201,18 @@ function setBusy(busy) {
   els.drawSpinner.hidden = !busy;
   if (els.drawBtnIcon) els.drawBtnIcon.style.display = busy ? "none" : "block";
   if (els.drawBtnText) els.drawBtnText.textContent = busy ? "正在渲染生成中..." : "立即渲染生成";
+  if (els.mainStage) {
+    els.mainStage.classList.toggle("is-waiting", busy);
+    if (busy) els.mainStage.scrollTop = 0;
+  }
+  const title = els.resultEmpty && els.resultEmpty.querySelector(".empty-lead-title");
+  const caption = els.resultEmpty && els.resultEmpty.querySelector(".empty-sub-caption");
+  if (title) title.textContent = busy ? "正在渲染" : "暗房巨幕就绪";
+  if (caption) {
+    caption.textContent = busy
+      ? "请稍候，成图完成后会显示在这里。"
+      : "在左侧构思画面并点击“立即渲染生成”，高清成图将在此处完整展出。";
+  }
 }
 
 function dataUrl(image) {

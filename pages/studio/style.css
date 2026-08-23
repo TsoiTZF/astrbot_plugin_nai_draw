@@ -989,6 +989,8 @@ textarea#prompt {
   background: var(--bg-theater);
   overflow-y: auto;
   position: relative;
+  display: flex;
+  flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: var(--bevel-subtle) transparent;
 }
@@ -1007,7 +1009,36 @@ textarea#prompt {
   flex-direction: column;
   gap: 20px;
   max-width: 1300px;
+  width: 100%;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 等待生图时：100% 缩放只看巨幕，历史胶片滚出视口 */
+.workbench-main-stage.is-waiting {
+  overflow: hidden;
+}
+
+.workbench-main-stage.is-waiting .stage-scroller-body {
+  height: 100%;
+  padding-bottom: 20px;
+}
+
+.workbench-main-stage.is-waiting .canvas-showcase-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.workbench-main-stage.is-waiting .canvas-screen-frame {
+  min-height: calc(100vh - 92px);
+  max-height: none;
+  height: 100%;
+}
+
+.workbench-main-stage.is-waiting .history-filmstrip-section,
+.workbench-main-stage.is-waiting .prompt-inspector-section {
+  display: none !important;
 }
 
 /* 1. 主画布展示与操作栏 */

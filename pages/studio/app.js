@@ -1,10 +1,10 @@
 /**
- * 暗房绘台 WebUI 核心驱动脚本
- * 基于原生现代 ESM，零外部依赖，适配 AstrBot 插件 Web 沙箱
+ * 暗房绘台 WebUI 核心业务与渲染脚本
+ * 原生现代 ESM 架构，零外部依赖，极速响应
  */
 
 function createFallbackBridge() {
-  const message = "请在 AstrBot 插件详情页打开绘台";
+  const message = "请在 AstrBot 插件详情页打开暗房绘台";
   const fail = async () => {
     throw new Error(message);
   };
@@ -65,9 +65,9 @@ const state = {
   isBusy: false,
 };
 
-// DOM 元素引用表
+// DOM 元素引用缓存
 const els = {
-  // 状态与仪表盘
+  // 仪表盘遥测
   apiStatus: document.getElementById("status-api"),
   statusDot: document.getElementById("status-dot"),
   modelStatus: document.getElementById("status-model"),
@@ -76,7 +76,7 @@ const els = {
   tabGalleryCount: document.getElementById("tab-gallery-count"),
   tabCoverCount: document.getElementById("tab-cover-count"),
   
-  // 表单与控制项
+  // 表单与交互
   form: document.getElementById("draw-form"),
   prompt: document.getElementById("prompt"),
   btnClearPrompt: document.getElementById("btn-clear-prompt"),
@@ -88,6 +88,7 @@ const els = {
   stegoPassword: document.getElementById("stego-password"),
   drawButton: document.getElementById("draw-button"),
   drawSpinner: document.getElementById("draw-spinner"),
+  drawBtnIcon: document.getElementById("draw-btn-icon"),
   drawBtnText: document.getElementById("draw-btn-text"),
   formHint: document.getElementById("form-hint"),
   presetGrid: document.getElementById("preset-grid"),
@@ -95,8 +96,9 @@ const els = {
   presetSummary: document.getElementById("preset-summary"),
   sizeSummary: document.getElementById("size-summary"),
 
-  // 画布与结果区
+  // 画布视口与巡检 Dock
   canvasViewport: document.getElementById("canvas-viewport"),
+  artworkFrame: document.getElementById("artwork-frame"),
   resultImage: document.getElementById("result-image"),
   resultEmpty: document.getElementById("result-empty"),
   resultDock: document.getElementById("result-dock"),
@@ -112,12 +114,12 @@ const els = {
   btnCopyPrompt: document.getElementById("btn-copy-prompt"),
   btnCopyNegative: document.getElementById("btn-copy-negative"),
 
-  // 选项卡与导航
-  tabs: document.querySelectorAll(".stage-tab"),
+  // 导航选项卡
+  tabs: document.querySelectorAll(".segment-tab"),
   tabPanels: document.querySelectorAll(".tab-panel"),
   btnToggleTheme: document.getElementById("btn-toggle-theme"),
 
-  // 画廊与载体管理
+  // 画廊与载体
   gallery: document.getElementById("gallery"),
   btnRefreshGallery: document.getElementById("btn-refresh-gallery"),
   covers: document.getElementById("covers"),
@@ -133,11 +135,10 @@ const els = {
   extractPreviewImg: document.getElementById("extract-preview-img"),
   btnDownloadExtracted: document.getElementById("btn-download-extracted"),
 
-  // Toast 提示
+  // 全局 Glass Toast
   toast: document.getElementById("toast"),
 };
 
-// 辅助方法：解包后端数据
 function unwrap(payload) {
   if (payload && typeof payload === "object" && payload.status === "ok" && "data" in payload) {
     return payload.data;
@@ -145,18 +146,16 @@ function unwrap(payload) {
   return payload;
 }
 
-// 辅助方法：统一错误消息
 function errorMessage(error) {
-  if (!error) return "请求失败";
+  if (!error) return "未知请求错误";
   if (typeof error === "string") return error;
-  return error.message || "请求失败";
+  return error.message || "未知请求错误";
 }
 
-// 全局 Toast 提示展示
 function showToast(message, kind = "info") {
   if (!els.toast) return;
   els.toast.hidden = false;
-  els.toast.className = `toast ${kind === "error" ? "error" : ""}`.trim();
+  els.toast.className = `glass-toast ${kind === "error" ? "error" : ""}`.trim();
   els.toast.textContent = message;
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
@@ -164,12 +163,12 @@ function showToast(message, kind = "info") {
   }, 4500);
 }
 
-// 设定出图状态
 function setBusy(busy) {
   state.isBusy = busy;
   els.drawButton.disabled = busy;
   els.drawSpinner.hidden = !busy;
-  els.drawBtnText.textContent = busy ? "正在绘制生成中..." : "开始出图";
+  els.drawBtnIcon.hidden = busy;
+  els.drawBtnText.textContent = busy ? "正在渲染生成中..." : "立即渲染生成";
 }
 
 function dataUrl(image) {
@@ -190,8 +189,9 @@ function setupTabs() {
     tab.addEventListener("click", () => {
       const targetTab = tab.dataset.tab;
       els.tabs.forEach((t) => {
-        t.classList.toggle("active", t === tab);
-        t.setAttribute("aria-selected", t === tab ? "true" : "false");
+        const isMatch = t === tab;
+        t.classList.toggle("active", isMatch);
+        t.setAttribute("aria-selected", isMatch ? "true" : "false");
       });
       els.tabPanels.forEach((p) => {
         const isActive = p.id === targetTab;
@@ -202,80 +202,80 @@ function setupTabs() {
   });
 }
 
-// 渲染预设选择网格
+// 渲染画风预设矩阵
 function renderPresets(presets) {
   els.presetGrid.replaceChildren();
   for (const item of presets) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `preset-chip ${item.key === state.preset ? "active" : ""}`;
-    chip.dataset.key = item.key;
-    chip.setAttribute("role", "radio");
-    chip.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `preset-card-pro ${item.key === state.preset ? "active" : ""}`;
+    card.dataset.key = item.key;
+    card.setAttribute("role", "radio");
+    card.setAttribute("aria-checked", item.key === state.preset ? "true" : "false");
 
     const numSpan = document.createElement("span");
-    numSpan.className = "preset-chip__num";
+    numSpan.className = "preset-num-badge";
     numSpan.textContent = `#${item.number}`;
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "preset-chip__name";
+    nameSpan.className = "preset-name-pro";
     nameSpan.textContent = item.label.split("（")[0];
-    chip.title = item.label;
+    card.title = item.label;
 
-    chip.appendChild(numSpan);
-    chip.appendChild(nameSpan);
+    card.appendChild(numSpan);
+    card.appendChild(nameSpan);
 
-    chip.addEventListener("click", () => {
+    card.addEventListener("click", () => {
       state.preset = item.key;
       els.presetSummary.textContent = item.label;
-      els.presetGrid.querySelectorAll(".preset-chip").forEach((c) => {
+      els.presetGrid.querySelectorAll(".preset-card-pro").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
       });
     });
 
-    els.presetGrid.appendChild(chip);
+    els.presetGrid.appendChild(card);
   }
 }
 
-// 渲染画幅尺寸选择器
+// 渲染画幅尺寸矩阵
 function renderSizes(sizes) {
   els.sizeRow.replaceChildren();
   for (const item of sizes) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `size-chip ${item.key === state.size ? "active" : ""}`;
-    chip.dataset.key = item.key;
-    chip.setAttribute("role", "radio");
-    chip.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `size-card-pro ${item.key === state.size ? "active" : ""}`;
+    card.dataset.key = item.key;
+    card.setAttribute("role", "radio");
+    card.setAttribute("aria-checked", item.key === state.size ? "true" : "false");
 
     const labelSpan = document.createElement("span");
-    labelSpan.className = "size-chip__label";
+    labelSpan.className = "size-label-pro";
     labelSpan.textContent = item.label;
 
-    const resSpan = document.createElement("span");
-    resSpan.className = "size-chip__res";
-    resSpan.textContent = item.hint;
+    const dimSpan = document.createElement("span");
+    dimSpan.className = "size-dim-pro";
+    dimSpan.textContent = item.hint;
 
-    chip.appendChild(labelSpan);
-    chip.appendChild(resSpan);
+    card.appendChild(labelSpan);
+    card.appendChild(dimSpan);
 
-    chip.addEventListener("click", () => {
+    card.addEventListener("click", () => {
       state.size = item.key;
       els.sizeSummary.textContent = `${item.label} (${item.hint})`;
-      els.sizeRow.querySelectorAll(".size-chip").forEach((c) => {
+      els.sizeRow.querySelectorAll(".size-card-pro").forEach((c) => {
         const isMatch = c.dataset.key === item.key;
         c.classList.toggle("active", isMatch);
         c.setAttribute("aria-checked", isMatch ? "true" : "false");
       });
     });
 
-    els.sizeRow.appendChild(chip);
+    els.sizeRow.appendChild(card);
   }
 }
 
-// 渲染画廊缩略图列表
+// 渲染画廊缩略图瀑布流
 function renderGallery(items) {
   state.gallery = items || [];
   const count = state.gallery.length;
@@ -285,22 +285,21 @@ function renderGallery(items) {
   els.gallery.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-hint";
-    emptyNotice.textContent = "暂无历史生成记录。在左侧描述画面后点击出图即可保存至画廊。";
+    emptyNotice.className = "drop-specs";
+    emptyNotice.textContent = "档案库暂无历史成图。在左侧描述画面后点击渲染即可自动归档。";
     els.gallery.appendChild(emptyNotice);
     return;
   }
 
   for (const item of state.gallery) {
     const card = document.createElement("div");
-    card.className = "gallery-card";
+    card.className = "gallery-card-item";
 
     const img = document.createElement("img");
-    img.className = "gallery-card__thumb";
+    img.className = "gallery-card-item__thumb";
     img.alt = item.name;
     img.loading = "lazy";
 
-    // 尝试拉取缩略图
     if (state.thumbs.has(item.name)) {
       img.src = state.thumbs.get(item.name);
     } else {
@@ -315,23 +314,23 @@ function renderGallery(items) {
         .catch(() => {});
     }
 
-    const info = document.createElement("div");
-    info.className = "gallery-card__info";
+    const meta = document.createElement("div");
+    meta.className = "gallery-card-item__meta";
 
     const presetName = document.createElement("span");
-    presetName.className = "gallery-card__preset";
+    presetName.className = "gallery-card-item__preset";
     presetName.textContent = item.preset || "成图";
 
-    const dateSpan = document.createElement("span");
-    dateSpan.className = "gallery-card__date";
-    dateSpan.textContent = new Date(item.mtime * 1000).toLocaleTimeString();
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "gallery-card-item__time";
+    timeSpan.textContent = new Date(item.mtime * 1000).toLocaleTimeString();
 
-    info.appendChild(presetName);
-    info.appendChild(dateSpan);
+    meta.appendChild(presetName);
+    meta.appendChild(timeSpan);
     card.appendChild(img);
-    card.appendChild(info);
+    card.appendChild(meta);
 
-    // 点击历史卡片：回放画布
+    // 点击卡片：重放至主画布
     card.addEventListener("click", async () => {
       try {
         const res = await apiGet("preview", { name: item.name });
@@ -339,19 +338,18 @@ function renderGallery(items) {
           state.currentName = item.name;
           state.stegoName = "";
           displayResultOnCanvas(res.image, {
-            preset_label: item.preset || "历史作品",
+            preset_label: item.preset || "历史归档",
             size: "自适应",
             nsfw: false,
             face_variation: true,
-            prompt: "（历史作品提示词已归档）",
+            prompt: "（该历史作品提示词已归档）",
             negative: "—",
           });
-          // 切换到画布中心 Tab
           els.tabs[0].click();
-          showToast(`已在画布中回放作品 ${item.name}`);
+          showToast(`已在主画布中载入 ${item.name}`);
         }
       } catch (err) {
-        showToast(`加载历史作品失败: ${errorMessage(err)}`, "error");
+        showToast(`载入历史作品失败: ${errorMessage(err)}`, "error");
       }
     });
 
@@ -369,18 +367,18 @@ function renderCovers(items) {
   els.covers.replaceChildren();
   if (count === 0) {
     const emptyNotice = document.createElement("p");
-    emptyNotice.className = "drop-hint";
-    emptyNotice.textContent = "载体库暂无图片。拖拽图片到上方上传区，或点击上传按钮添加。";
+    emptyNotice.className = "drop-specs";
+    emptyNotice.textContent = "载体库暂无图片。拖拽图片至上方磁吸区或点击上传。";
     els.covers.appendChild(emptyNotice);
     return;
   }
 
   for (const item of state.covers) {
     const card = document.createElement("div");
-    card.className = "cover-card";
+    card.className = "cover-card-item";
 
     const img = document.createElement("img");
-    img.className = "cover-card__thumb";
+    img.className = "cover-card-item__thumb";
     img.alt = item.name;
     img.loading = "lazy";
 
@@ -398,17 +396,17 @@ function renderCovers(items) {
         .catch(() => {});
     }
 
-    const footer = document.createElement("div");
-    footer.className = "cover-card__footer";
+    const foot = document.createElement("div");
+    foot.className = "cover-card-item__foot";
 
     const nameSpan = document.createElement("span");
-    nameSpan.className = "cover-card__name";
+    nameSpan.className = "cover-card-item__name";
     nameSpan.textContent = item.name;
     nameSpan.title = item.name;
 
     const btnDel = document.createElement("button");
     btnDel.type = "button";
-    btnDel.className = "btn-delete-cover";
+    btnDel.className = "btn-del-cover-tag";
     btnDel.textContent = "删除";
     btnDel.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -416,25 +414,25 @@ function renderCovers(items) {
       try {
         const res = await apiPost("covers/delete", { name: item.name });
         renderCovers(res.covers);
-        showToast("已删除载体图片");
+        showToast("已成功移除载体图片");
       } catch (err) {
         showToast(`删除失败: ${errorMessage(err)}`, "error");
       }
     });
 
-    footer.appendChild(nameSpan);
-    footer.appendChild(btnDel);
+    foot.appendChild(nameSpan);
+    foot.appendChild(btnDel);
     card.appendChild(img);
-    card.appendChild(footer);
+    card.appendChild(foot);
 
     els.covers.appendChild(card);
   }
 }
 
-// 在主画布区展示生成结果
+// 主画布呈现成图
 function displayResultOnCanvas(imageObj, meta) {
   els.resultImage.src = dataUrl(imageObj);
-  els.resultImage.hidden = false;
+  els.artworkFrame.hidden = false;
   els.resultEmpty.hidden = true;
   els.resultDock.hidden = false;
 
@@ -453,14 +451,10 @@ function displayResultOnCanvas(imageObj, meta) {
   }
 
   els.downloadResult.disabled = !state.currentName;
-  if (state.stegoName) {
-    els.downloadStego.hidden = false;
-  } else {
-    els.downloadStego.hidden = true;
-  }
+  els.downloadStego.hidden = !state.stegoName;
 }
 
-// 初始化启动
+// 初始化引导数据
 async function bootstrap() {
   try {
     const readyState = await bridge.ready();
@@ -475,9 +469,8 @@ async function bootstrap() {
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
 
-    // 状态与仪表盘更新
     els.apiStatus.textContent = state.configured ? "就绪在线" : "未配置密钥";
-    els.statusDot.className = `status-indicator ${state.configured ? "ready" : "error"}`;
+    els.statusDot.className = `status-dot ${state.configured ? "ready" : "error"}`;
     els.modelStatus.textContent = data.model || "NAI 4.5";
     els.nsfw.checked = Boolean(data.allow_nsfw);
     els.face.checked = Boolean(data.enable_face_variation);
@@ -493,15 +486,14 @@ async function bootstrap() {
     const activeSizeObj = state.sizes.find((s) => s.key === state.size);
     if (activeSizeObj) els.sizeSummary.textContent = `${activeSizeObj.label} (${activeSizeObj.hint})`;
   } catch (err) {
-    els.apiStatus.textContent = "连接异常";
-    els.statusDot.className = "status-indicator error";
+    els.apiStatus.textContent = "未连接";
+    els.statusDot.className = "status-dot error";
     showToast(`初始化失败: ${errorMessage(err)}`, "error");
   }
 }
 
-// 事件监听与交互绑定
+// 统一绑定交互事件
 function setupEventListeners() {
-  // 选项卡切换
   setupTabs();
 
   // 清空描述
@@ -510,7 +502,7 @@ function setupEventListeners() {
     els.prompt.focus();
   });
 
-  // 快捷键 Ctrl + Enter 提交出图
+  // 快捷出图：Ctrl + Enter / Cmd + Enter
   els.prompt.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
@@ -520,12 +512,12 @@ function setupEventListeners() {
     }
   });
 
-  // 隐写开关联动
+  // 隐写密码字段展开联动
   els.stego.addEventListener("change", () => {
     els.stegoPasswordField.hidden = !els.stego.checked;
   });
 
-  // 主题切换
+  // 切换深色/浅色模式
   els.btnToggleTheme.addEventListener("click", () => {
     const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
     const nextTheme = currentTheme === "dark" ? "light" : "dark";
@@ -536,7 +528,7 @@ function setupEventListeners() {
   els.btnCopyPrompt.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.sheetPrompt.textContent);
-      showToast("已复制正面提示词到剪贴板");
+      showToast("已复制正面标签到剪贴板");
     } catch {
       showToast("复制失败，请手动选取", "error");
     }
@@ -545,26 +537,26 @@ function setupEventListeners() {
   els.btnCopyNegative.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(els.sheetNegative.textContent);
-      showToast("已复制负面提示词到剪贴板");
+      showToast("已复制负面标签到剪贴板");
     } catch {
       showToast("复制失败，请手动选取", "error");
     }
   });
 
-  // 表单提交出图
+  // 提交出图表单
   els.form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (state.isBusy) return;
 
     const promptVal = els.prompt.value.trim();
     if (!promptVal) {
-      showToast("请填写画面描述后再出图", "error");
+      showToast("请填写画面构想后再出图", "error");
       els.prompt.focus();
       return;
     }
 
     setBusy(true);
-    els.formHint.textContent = "正在将中文转换为标签并请求 NovelAI 4.5 模型...";
+    els.formHint.textContent = "● 正在转译中文并向 NovelAI 4.5 请求高清渲染...";
 
     try {
       const payload = {
@@ -591,18 +583,17 @@ function setupEventListeners() {
         renderGallery(result.gallery);
       }
 
-      // 切换到画布中心
       els.tabs[0].click();
-      showToast("绘图生成成功！");
+      showToast("渲染完成，杰作已呈现！");
     } catch (err) {
-      showToast(`出图失败: ${errorMessage(err)}`, "error");
+      showToast(`渲染失败: ${errorMessage(err)}`, "error");
     } finally {
       setBusy(false);
-      els.formHint.textContent = "中文会自动通过词典与 LLM 智能转换为官方英文标签";
+      els.formHint.textContent = "● 中文描述将通过智能词典与 LLM 无损转译为官方高质量英文标签";
     }
   });
 
-  // 下载高清成图
+  // 下载成图
   els.downloadResult.addEventListener("click", async () => {
     if (!state.currentName) return;
     try {
@@ -619,14 +610,14 @@ function setupEventListeners() {
     }
   });
 
-  // 下载隐写 PNG
+  // 下载隐写封包
   els.downloadStego.addEventListener("click", async () => {
     if (!state.stegoName) return;
     try {
       if (typeof bridge.download === "function") {
         await bridge.download("download", { name: state.stegoName }, state.stegoName);
       } else {
-        showToast("正在下载隐写封包...");
+        showToast("下载隐写封包中...");
       }
     } catch (err) {
       showToast(`下载失败: ${errorMessage(err)}`, "error");
@@ -638,17 +629,17 @@ function setupEventListeners() {
     try {
       const res = await apiGet("gallery");
       renderGallery(res.gallery);
-      showToast("画廊列表已更新");
+      showToast("画廊档案库已刷新");
     } catch (err) {
       showToast(`刷新失败: ${errorMessage(err)}`, "error");
     }
   });
 
-  // 上传载体图片
+  // 上传载体
   async function handleCoverUpload(file) {
     if (!file) return;
     try {
-      showToast(`正在上传载体 ${file.name}...`);
+      showToast(`正在上传载体图 ${file.name}...`);
       const res = await bridge.upload("covers/upload", file, {});
       const data = unwrap(res);
       renderCovers(data.covers);
@@ -664,7 +655,6 @@ function setupEventListeners() {
     e.target.value = "";
   });
 
-  // 载体拖拽上传
   els.coverDropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     els.coverDropZone.classList.add("dragover");
@@ -682,15 +672,13 @@ function setupEventListeners() {
     els.coverFile.click();
   });
 
-  // 隐写拆封工坊流程
+  // 隐写拆封流程
   async function handleExtract(file) {
     if (!file) return;
-    els.extractHint.textContent = `正在拆封解析 ${file.name}...`;
+    els.extractHint.textContent = `正在解构拆封 ${file.name}...`;
     try {
       const password = els.extractPassword.value.trim();
-      // 步骤1：预设密码准备
       await apiPost("extract/prepare", { password });
-      // 步骤2：上传并提取
       const res = await bridge.upload("extract", file, { password });
       const data = unwrap(res);
 
@@ -698,13 +686,13 @@ function setupEventListeners() {
         const url = dataUrl(data.image);
         els.extractPreviewImg.src = url;
         els.extractResultPanel.hidden = false;
-        els.extractHint.textContent = "拆封解密成功，已成功还原生成图！";
-        showToast("隐写封包拆封成功！");
+        els.extractHint.textContent = "拆封成功，已成功还原生成原图！";
+        showToast("隐写原图还原成功！");
 
         els.btnDownloadExtracted.onclick = () => {
           const link = document.createElement("a");
           link.href = url;
-          link.download = data.name || "extracted_image.png";
+          link.download = data.name || "extracted_masterpiece.png";
           link.click();
         };
       }
@@ -735,7 +723,7 @@ function setupEventListeners() {
   });
 }
 
-// 启动执行
+// 页面加载完成执行
 document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   bootstrap();

@@ -3,333 +3,417 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>暗房绘台 - NovelAI 4.5 专业工作台</title>
+    <title>暗房绘台 - NovelAI 4.5 创作者工作台</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <!-- 背景光晕氛围层 -->
+    <div class="ambient-glow" aria-hidden="true"></div>
+
     <div class="app-layout">
-      <!-- 左侧控制面板 -->
+      <!-- 左侧创作控制坞 (Composer) -->
       <aside class="sidebar composer" aria-label="生成参数控制区">
-        <header class="studio-header">
+        <!-- 品牌与标题 -->
+        <header class="studio-brand">
           <div class="brand-badge">
-            <span class="brand-dot"></span>
-            <span class="brand-name">暗房绘台</span>
-            <span class="brand-version">v1.7.0</span>
+            <span class="pulse-indicator"></span>
+            <span class="brand-title-gradient">暗房绘台</span>
+            <span class="version-tag">PRO v1.7.0</span>
           </div>
-          <p class="brand-subtitle">基于 NovelAI Diffusion 4.5</p>
+          <p class="brand-caption">NovelAI Diffusion 4.5 极速创作工作流</p>
         </header>
 
-        <!-- 运行仪表盘 -->
-        <section class="meters-panel" aria-label="服务状态">
-          <div class="meter-card">
-            <span class="meter-label">服务状态</span>
-            <div class="meter-value-wrapper">
-              <span class="status-indicator" id="status-dot"></span>
-              <span class="meter-value" id="status-api">检测中</span>
+        <!-- 运行遥测仪表盘 -->
+        <section class="telemetry-bar" aria-label="服务遥测">
+          <div class="telemetry-item">
+            <span class="telemetry-label">API 上游</span>
+            <div class="telemetry-value-wrap">
+              <span class="status-dot" id="status-dot"></span>
+              <span class="telemetry-value" id="status-api">连接中</span>
             </div>
           </div>
-          <div class="meter-card">
-            <span class="meter-label">当前模型</span>
-            <span class="meter-value meter-value--mono" id="status-model">—</span>
+          <div class="telemetry-item">
+            <span class="telemetry-label">核心模型</span>
+            <span class="telemetry-value font-mono" id="status-model">—</span>
           </div>
-          <div class="meter-card">
-            <span class="meter-label">历史生成</span>
-            <span class="meter-value meter-value--mono" id="status-gallery">0</span>
+          <div class="telemetry-item">
+            <span class="telemetry-label">成图画廊</span>
+            <span class="telemetry-value font-mono count-highlight" id="status-gallery">0</span>
           </div>
-          <div class="meter-card">
-            <span class="meter-label">载体图库</span>
-            <span class="meter-value meter-value--mono" id="status-covers">0</span>
+          <div class="telemetry-item">
+            <span class="telemetry-label">隐写载体</span>
+            <span class="telemetry-value font-mono count-highlight" id="status-covers">0</span>
           </div>
         </section>
 
-        <!-- 生成表单 -->
-        <form id="draw-form" class="draw-form">
-          <!-- 画面描述 -->
-          <div class="form-group">
-            <div class="form-group-header">
-              <label for="prompt" class="form-label">
-                <span>画面描述</span>
-                <span class="badge-hint">支持中英混写</span>
+        <!-- 创作控制表单 -->
+        <form id="draw-form" class="studio-form">
+          <!-- 提示词输入核心区 -->
+          <div class="field-panel">
+            <div class="field-header">
+              <label for="prompt" class="field-label">
+                <span class="field-icon">✦</span>
+                <span class="field-title">画面描述 / Prompt</span>
               </label>
-              <button type="button" id="btn-clear-prompt" class="btn-text-action" title="清空描述">清空</button>
+              <div class="field-actions">
+                <span class="lang-tag">支持中文自然语言</span>
+                <button type="button" id="btn-clear-prompt" class="btn-ghost-sm" title="清空内容">清空</button>
+              </div>
             </div>
-            <div class="textarea-wrapper">
+            <div class="textarea-container">
               <textarea
                 id="prompt"
                 name="prompt"
-                rows="5"
+                rows="4"
                 required
-                placeholder="例如：长发女孩，夜雨旗袍，侧光，看着镜头，高质量..."
+                placeholder="在此输入画面构想，例如：雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影..."
               ></textarea>
-              <span class="keyboard-tip">按 Ctrl + Enter 立即出图</span>
+              <div class="textarea-footer">
+                <span class="shortcut-pill">Ctrl + ↵ 立即出图</span>
+              </div>
             </div>
           </div>
 
-          <!-- 风格预设网格 -->
-          <div class="form-group">
-            <div class="form-group-header">
-              <span class="form-label">画风预设</span>
-              <span class="sub-hint" id="preset-summary">老五样（通用美脸）</span>
+          <!-- 画风艺术预设卡片网格 -->
+          <div class="field-panel">
+            <div class="field-header">
+              <span class="field-label">
+                <span class="field-icon">🎨</span>
+                <span class="field-title">艺术预设风格</span>
+              </span>
+              <span class="field-current-value" id="preset-summary">老五样</span>
             </div>
-            <div class="preset-grid" id="preset-grid" role="radiogroup" aria-label="画风预设选择"></div>
+            <div class="preset-matrix" id="preset-grid" role="radiogroup" aria-label="画风预设选择"></div>
           </div>
 
-          <!-- 画幅比例 -->
-          <div class="form-group">
-            <div class="form-group-header">
-              <span class="form-label">画幅比例</span>
-              <span class="sub-hint" id="size-summary">竖图 (832×1216)</span>
+          <!-- 画幅规格选择 -->
+          <div class="field-panel">
+            <div class="field-header">
+              <span class="field-label">
+                <span class="field-icon">📐</span>
+                <span class="field-title">画幅比例</span>
+              </span>
+              <span class="field-current-value" id="size-summary">竖图</span>
             </div>
-            <div class="size-selector-grid" id="size-row" role="radiogroup" aria-label="画幅尺寸选择"></div>
+            <div class="size-matrix" id="size-row" role="radiogroup" aria-label="画幅尺寸选择"></div>
           </div>
 
-          <!-- 个人画师标签 -->
-          <div class="form-group">
-            <div class="form-group-header">
-              <label for="artists" class="form-label">
-                <span>个人画师叠加</span>
-                <span class="badge-hint">可选</span>
+          <!-- 个人画师串微调 -->
+          <div class="field-panel">
+            <div class="field-header">
+              <label for="artists" class="field-label">
+                <span class="field-icon">🖋️</span>
+                <span class="field-title">画师风格叠加</span>
               </label>
+              <span class="field-extra-hint">NAI 权重支持</span>
             </div>
-            <input
-              id="artists"
-              name="artists"
-              type="text"
-              class="studio-input"
-              placeholder="例如：artist:wlop, {artist:guweiz}"
-              autocomplete="off"
-            />
+            <div class="input-glass-wrap">
+              <input
+                id="artists"
+                name="artists"
+                type="text"
+                class="glass-input"
+                placeholder="例如：artist:wlop, {artist:guweiz}, 1.2::artist:fuzichoco::"
+                autocomplete="off"
+              />
+            </div>
           </div>
 
-          <!-- 高级开关面板 -->
-          <div class="form-group switch-cluster">
-            <label class="studio-switch" title="开启后解除内置敏感词压制">
-              <input id="nsfw" type="checkbox" />
-              <span class="switch-slider"></span>
-              <span class="switch-text">NSFW 模式</span>
+          <!-- 高级开关模组 -->
+          <div class="switch-module">
+            <label class="glass-switch-card" title="解除内置 NSFW 压制词">
+              <div class="switch-info">
+                <span class="switch-name">NSFW 模式</span>
+                <span class="switch-desc">解除敏感限制</span>
+              </div>
+              <div class="switch-toggle">
+                <input id="nsfw" type="checkbox" />
+                <span class="toggle-track"></span>
+              </div>
             </label>
 
-            <label class="studio-switch" title="自动优化人物面部特征与五官细节">
-              <input id="face" type="checkbox" checked />
-              <span class="switch-slider"></span>
-              <span class="switch-text">自动脸型增强</span>
+            <label class="glass-switch-card" title="智能增强五官立体度与面部精致细节">
+              <div class="switch-info">
+                <span class="switch-name">自动脸型增强</span>
+                <span class="switch-desc">五官精细重绘</span>
+              </div>
+              <div class="switch-toggle">
+                <input id="face" type="checkbox" checked />
+                <span class="toggle-track"></span>
+              </div>
             </label>
 
-            <label class="studio-switch" title="出图后自动伪装嵌入载体图，生成隐写 PNG">
-              <input id="stego" type="checkbox" />
-              <span class="switch-slider"></span>
-              <span class="switch-text">隐写嵌入</span>
+            <label class="glass-switch-card" title="将生成结果隐写隐藏入随机载体图片中">
+              <div class="switch-info">
+                <span class="switch-name">隐写加密封包</span>
+                <span class="switch-desc">伪装载体输出</span>
+              </div>
+              <div class="switch-toggle">
+                <input id="stego" type="checkbox" />
+                <span class="toggle-track"></span>
+              </div>
             </label>
           </div>
 
-          <!-- 隐写密码配置 -->
-          <div class="form-group" id="stego-password-field" hidden>
-            <label for="stego-password" class="form-label">
-              <span>隐写加密密码</span>
-              <span class="badge-hint">可留空，若填写则解密必须提供密码</span>
-            </label>
-            <input
-              id="stego-password"
-              type="password"
-              class="studio-input"
-              placeholder="请输入解密封包密码"
-              autocomplete="off"
-            />
+          <!-- 隐写密码输入区 (联动展开) -->
+          <div class="field-panel animate-expand" id="stego-password-field" hidden>
+            <div class="field-header">
+              <label for="stego-password" class="field-label">
+                <span class="field-icon">🔒</span>
+                <span class="field-title">隐写封包密码</span>
+              </label>
+              <span class="field-extra-hint">留空为无密码封装</span>
+            </div>
+            <div class="input-glass-wrap">
+              <input
+                id="stego-password"
+                type="password"
+                class="glass-input"
+                placeholder="设置提取密码（不保存于服务器）"
+                autocomplete="off"
+              />
+            </div>
           </div>
 
-          <!-- 出图按钮 -->
-          <div class="form-actions">
-            <button id="draw-button" type="submit" class="btn-primary">
+          <!-- 出图主动作按钮 -->
+          <div class="action-footer">
+            <button id="draw-button" type="submit" class="btn-generate-glow">
+              <span class="btn-shimmer"></span>
               <span class="btn-spinner" id="draw-spinner" hidden></span>
-              <span class="btn-text" id="draw-btn-text">开始出图</span>
+              <span class="btn-icon-flash" id="draw-btn-icon">⚡</span>
+              <span class="btn-label" id="draw-btn-text">立即渲染生成</span>
             </button>
-            <p class="form-bottom-hint" id="form-hint">中文会自动通过词典与 LLM 智能转换为官方英文标签</p>
+            <p class="translation-notice" id="form-hint">
+              <span class="hint-bullet">●</span> 中文描述将通过智能词典与 LLM 无损转译为官方高质量英文标签
+            </p>
           </div>
         </form>
       </aside>
 
-      <!-- 右侧主工作区 -->
+      <!-- 右侧主视觉与功能工作台 (Workspace) -->
       <main class="main-stage workspace">
-        <!-- 顶部导航选项卡 -->
-        <header class="stage-tabs-header">
-          <nav class="stage-tabs" role="tablist">
-            <button type="button" class="stage-tab active" data-tab="tab-canvas" role="tab" aria-selected="true">
-              画布中心
+        <!-- 顶栏导航与工作区切换 -->
+        <header class="studio-topbar">
+          <nav class="nav-segmented-control" role="tablist">
+            <button type="button" class="segment-tab active" data-tab="tab-canvas" role="tab" aria-selected="true">
+              <span class="tab-icon">🖼️</span>
+              <span class="tab-text">主画布中心</span>
             </button>
-            <button type="button" class="stage-tab" data-tab="tab-history" role="tab" aria-selected="false">
-              生成画廊 (<span id="tab-gallery-count">0</span>)
+            <button type="button" class="segment-tab" data-tab="tab-history" role="tab" aria-selected="false">
+              <span class="tab-icon">🎞️</span>
+              <span class="tab-text">画廊档案库</span>
+              <span class="badge-counter" id="tab-gallery-count">0</span>
             </button>
-            <button type="button" class="stage-tab" data-tab="tab-covers" role="tab" aria-selected="false">
-              载体图库 (<span id="tab-cover-count">0</span>)
+            <button type="button" class="segment-tab" data-tab="tab-covers" role="tab" aria-selected="false">
+              <span class="tab-icon">📁</span>
+              <span class="tab-text">隐写载体图库</span>
+              <span class="badge-counter" id="tab-cover-count">0</span>
             </button>
-            <button type="button" class="stage-tab" data-tab="tab-stego" role="tab" aria-selected="false">
-              隐写拆封工坊
+            <button type="button" class="segment-tab" data-tab="tab-stego" role="tab" aria-selected="false">
+              <span class="tab-icon">🔐</span>
+              <span class="tab-text">隐写拆封工坊</span>
             </button>
           </nav>
 
-          <div class="stage-header-actions">
-            <button type="button" id="btn-toggle-theme" class="btn-icon" title="切换深浅主题">
+          <div class="topbar-actions">
+            <button type="button" id="btn-toggle-theme" class="btn-glass-icon" title="切换深色/浅色调色板">
               <span class="theme-icon">◐</span>
             </button>
           </div>
         </header>
 
-        <!-- 选项卡 1：画布中心 -->
+        <!-- 选项卡 1：主画布中心 -->
         <section id="tab-canvas" class="tab-panel active" role="tabpanel">
-          <div class="canvas-workspace">
+          <div class="canvas-studio-grid">
+            <!-- 视觉视口 (Viewport) -->
             <div class="canvas-viewport" id="canvas-viewport">
-              <div class="canvas-empty-state" id="result-empty">
-                <div class="empty-icon">🎨</div>
-                <h3>等待绘制创作</h3>
-                <p>在左侧填写画面描述并点击“开始出图”，成图将在此处高保真展示</p>
+              <div class="viewport-backdrop"></div>
+              
+              <!-- 空状态占位 -->
+              <div class="canvas-placeholder" id="result-empty">
+                <div class="empty-halo">
+                  <span class="empty-icon-art">✨</span>
+                </div>
+                <h2 class="empty-headline">暗房画布就绪</h2>
+                <p class="empty-description">在左侧输入画面意境并点击“立即渲染生成”，高保真杰作将呈现在此。</p>
               </div>
-              <img id="result-image" class="canvas-image" alt="当前生成作品" hidden />
-            </div>
 
-            <!-- 右侧/底部信息参数栏 -->
-            <div class="canvas-meta-dock" id="result-dock" hidden>
-              <div class="dock-section">
-                <div class="dock-header">
-                  <h3 class="dock-title">作品参数</h3>
-                  <div class="dock-actions">
-                    <button type="button" id="download-result" class="btn-dock-action" disabled>
-                      📥 下载高清成图
-                    </button>
-                    <button type="button" id="download-stego" class="btn-dock-action btn-dock-action--accent" hidden>
-                      🔒 下载隐写 PNG
-                    </button>
-                  </div>
+              <!-- 真实成图呈现 -->
+              <div class="artwork-frame" id="artwork-frame" hidden>
+                <div class="frame-corners">
+                  <span class="corner top-left"></span>
+                  <span class="corner top-right"></span>
+                  <span class="corner bottom-left"></span>
+                  <span class="corner bottom-right"></span>
                 </div>
-
-                <div class="parameter-grid" id="result-sheet">
-                  <div class="parameter-item">
-                    <span class="param-label">预设风格</span>
-                    <span class="param-value" id="sheet-preset">—</span>
-                  </div>
-                  <div class="parameter-item">
-                    <span class="param-label">画幅规格</span>
-                    <span class="param-value" id="sheet-size">—</span>
-                  </div>
-                  <div class="parameter-item">
-                    <span class="param-label">NSFW 状态</span>
-                    <span class="param-value" id="sheet-nsfw">—</span>
-                  </div>
-                  <div class="parameter-item">
-                    <span class="param-label">脸型增强</span>
-                    <span class="param-value" id="sheet-face">—</span>
-                  </div>
-                </div>
-
-                <div class="prompt-details-card">
-                  <div class="prompt-block">
-                    <div class="prompt-block-header">
-                      <span class="prompt-block-title">最终正面提示词</span>
-                      <button type="button" class="btn-copy-tag" id="btn-copy-prompt">复制</button>
-                    </div>
-                    <p class="prompt-text-display" id="sheet-prompt">—</p>
-                  </div>
-                  <div class="prompt-block">
-                    <div class="prompt-block-header">
-                      <span class="prompt-block-title">负面提示词</span>
-                      <button type="button" class="btn-copy-tag" id="btn-copy-negative">复制</button>
-                    </div>
-                    <p class="prompt-text-display prompt-text-display--muted" id="sheet-negative">—</p>
-                  </div>
-                </div>
-
-                <div class="meta-notice-banner" id="result-note" hidden></div>
+                <img id="result-image" class="rendered-artwork" alt="当前生成作品" />
               </div>
             </div>
+
+            <!-- 右侧属性与参数巡检 Dock 栏 -->
+            <aside class="canvas-inspector-dock" id="result-dock" hidden>
+              <div class="dock-header">
+                <div class="dock-title-group">
+                  <h3 class="dock-heading">作品工程参数</h3>
+                  <span class="dock-sub">GENERATION METRICS</span>
+                </div>
+                <div class="dock-download-group">
+                  <button type="button" id="download-result" class="btn-dock-download" disabled>
+                    <span class="btn-icon">📥</span>
+                    <span>下载高清成图</span>
+                  </button>
+                  <button type="button" id="download-stego" class="btn-dock-stego" hidden>
+                    <span class="btn-icon">🔒</span>
+                    <span>下载隐写 PNG 封包</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 参数网格 -->
+              <div class="metrics-grid" id="result-sheet">
+                <div class="metric-card">
+                  <span class="metric-label">应用预设</span>
+                  <span class="metric-val" id="sheet-preset">—</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">分辨率规格</span>
+                  <span class="metric-val font-mono" id="sheet-size">—</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">NSFW 状态</span>
+                  <span class="metric-val" id="sheet-nsfw">—</span>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">脸型增强</span>
+                  <span class="metric-val" id="sheet-face">—</span>
+                </div>
+              </div>
+
+              <!-- 提示词透视卡片 -->
+              <div class="prompt-inspector-card">
+                <div class="prompt-section">
+                  <div class="prompt-sec-head">
+                    <span class="prompt-sec-title">正面转译标签 / Positive Tags</span>
+                    <button type="button" class="btn-copy-tag" id="btn-copy-prompt">复制</button>
+                  </div>
+                  <div class="prompt-box">
+                    <p class="prompt-content font-mono" id="sheet-prompt">—</p>
+                  </div>
+                </div>
+
+                <div class="prompt-section">
+                  <div class="prompt-sec-head">
+                    <span class="prompt-sec-title">负面抑制标签 / Negative Tags</span>
+                    <button type="button" class="btn-copy-tag" id="btn-copy-negative">复制</button>
+                  </div>
+                  <div class="prompt-box prompt-box--negative">
+                    <p class="prompt-content font-mono" id="sheet-negative">—</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 提示与预警条 -->
+              <div class="notice-callout" id="result-note" hidden></div>
+            </aside>
           </div>
         </section>
 
-        <!-- 选项卡 2：生成画廊 -->
+        <!-- 选项卡 2：画廊档案库 -->
         <section id="tab-history" class="tab-panel" role="tabpanel" hidden>
-          <div class="history-gallery-container">
-            <div class="section-toolbar">
+          <div class="studio-subpage-container">
+            <div class="subpage-header">
               <div>
-                <h2>历史成图画廊</h2>
-                <p class="section-desc">点击任意历史作品可在画布中回放，并一键回填生成时的完整参数</p>
+                <h2 class="subpage-title">成图历史画廊</h2>
+                <p class="subpage-subtitle">点击任意历史作品可在主画布中即时重放，并无损查看生成时的完整参数链路</p>
               </div>
-              <button type="button" id="btn-refresh-gallery" class="btn-secondary">刷新列表</button>
+              <button type="button" id="btn-refresh-gallery" class="btn-glass-action">
+                <span>🔄 刷新画廊</span>
+              </button>
             </div>
-            <div class="gallery-grid" id="gallery"></div>
+            <div class="gallery-waterfall" id="gallery"></div>
           </div>
         </section>
 
-        <!-- 选项卡 3：载体图库 -->
+        <!-- 选项卡 3：隐写载体图库 -->
         <section id="tab-covers" class="tab-panel" role="tabpanel" hidden>
-          <div class="covers-manager-container">
-            <div class="section-toolbar">
+          <div class="studio-subpage-container">
+            <div class="subpage-header">
               <div>
-                <h2>隐写载体图库</h2>
-                <p class="section-desc">管理作为隐写外壳的载体图（出图时将随机抽取一张载体伪装）</p>
+                <h2 class="subpage-title">隐写载体图库管理</h2>
+                <p class="subpage-subtitle">管理隐写模式下的伪装外壳（出图时将从图库中随机抽取一张作为载体封装）</p>
               </div>
-              <label class="btn-primary file-upload-btn">
-                <span>➕ 上传新载体</span>
+              <label class="btn-glass-action btn-glass-action--accent">
+                <span>➕ 上传新载体图</span>
                 <input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden />
               </label>
             </div>
 
-            <!-- 拖拽上传区 -->
-            <div class="drop-zone" id="cover-drop-zone">
-              <div class="drop-zone-content">
-                <span class="drop-icon">📁</span>
-                <p>将载体图片拖拽至此，或点击上方按钮上传</p>
-                <span class="drop-hint">支持 PNG / JPG / WEBP / BMP，单张不超过 12MB</span>
+            <!-- 拖拽上传磁吸区 -->
+            <div class="drop-zone-glass" id="cover-drop-zone">
+              <div class="drop-content">
+                <span class="drop-art-icon">🔮</span>
+                <h3 class="drop-title">拖拽载体图片至此处完成上传</h3>
+                <span class="drop-specs">支持 PNG / JPG / WEBP / BMP 格式，文件上限 12MB</span>
               </div>
             </div>
 
-            <div class="covers-grid" id="covers"></div>
+            <div class="covers-waterfall" id="covers"></div>
           </div>
         </section>
 
         <!-- 选项卡 4：隐写拆封工坊 -->
         <section id="tab-stego" class="tab-panel" role="tabpanel" hidden>
-          <div class="stego-lab-container">
-            <div class="section-toolbar">
+          <div class="studio-subpage-container">
+            <div class="subpage-header">
               <div>
-                <h2>隐写拆封工坊</h2>
-                <p class="section-desc">直接解析机器人发送的原始隐写 PNG，还原被隐藏的高清出图</p>
+                <h2 class="subpage-title">暗房隐写拆封工坊</h2>
+                <p class="subpage-subtitle">直接将机器人发出的原始隐写 PNG 拖入拆封，秒级还原藏于像素底层的原始出图</p>
               </div>
             </div>
 
-            <div class="stego-lab-layout">
-              <div class="stego-upload-panel">
-                <div class="drop-zone" id="extract-drop-zone">
-                  <div class="drop-zone-content">
-                    <span class="drop-icon">🔐</span>
-                    <p>拖拽原始隐写 PNG 文件至此</p>
-                    <span class="drop-hint">必须使用未经社交软件二次压缩的原始 PNG 文件</span>
-                    <label class="btn-secondary file-upload-btn" style="margin-top: 14px;">
-                      <span>选择原始 PNG 文件</span>
+            <div class="stego-workshop-grid">
+              <div class="stego-card-glass">
+                <div class="drop-zone-glass" id="extract-drop-zone">
+                  <div class="drop-content">
+                    <span class="drop-art-icon">🔓</span>
+                    <h3 class="drop-title">拖拽原始隐写 PNG 到此处</h3>
+                    <span class="drop-specs">必须使用未经社交平台二次有损压缩的原文件</span>
+                    <label class="btn-glass-action" style="margin-top: 16px;">
+                      <span>选择本地文件</span>
                       <input id="extract-file" type="file" accept="image/png" hidden />
                     </label>
                   </div>
                 </div>
 
-                <div class="form-group" style="margin-top: 16px;">
-                  <label for="extract-password" class="form-label">解密密码（如未加密可留空）</label>
-                  <input
-                    id="extract-password"
-                    type="password"
-                    class="studio-input"
-                    placeholder="若嵌入时设置了密码，请在此填写"
-                    autocomplete="off"
-                  />
+                <div class="field-panel" style="margin-top: 20px;">
+                  <label for="extract-password" class="field-label">
+                    <span class="field-icon">🔑</span>
+                    <span class="field-title">解密密码（无密码封包可直接留空）</span>
+                  </label>
+                  <div class="input-glass-wrap" style="margin-top: 8px;">
+                    <input
+                      id="extract-password"
+                      type="password"
+                      class="glass-input"
+                      placeholder="若制图时设置了密码，在此输入"
+                      autocomplete="off"
+                    />
+                  </div>
                 </div>
 
-                <p class="extract-status-hint" id="extract-hint"></p>
+                <p class="extract-state-message" id="extract-hint"></p>
               </div>
 
               <!-- 拆封还原预览区 -->
-              <div class="stego-result-panel" id="extract-result-panel" hidden>
-                <h3>拆封还原成功</h3>
-                <div class="extract-preview-frame">
-                  <img id="extract-preview-img" alt="拆封还原图" />
+              <div class="stego-card-glass stego-result-card" id="extract-result-panel" hidden>
+                <div class="result-success-header">
+                  <span class="success-badge">✓ 拆封还原成功</span>
                 </div>
-                <button type="button" id="btn-download-extracted" class="btn-primary" style="margin-top: 16px; width: 100%;">
-                  📥 保存还原出的原图
+                <div class="extract-frame">
+                  <img id="extract-preview-img" alt="拆封还原成图" />
+                </div>
+                <button type="button" id="btn-download-extracted" class="btn-generate-glow" style="margin-top: 18px; width: 100%;">
+                  <span>📥 保存还原的高清原图</span>
                 </button>
               </div>
             </div>
@@ -338,8 +422,8 @@
       </main>
     </div>
 
-    <!-- 全局 Toast 提示 -->
-    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+    <!-- 全局 Glass Toast 消息提示 -->
+    <div id="toast" class="glass-toast" hidden role="status" aria-live="polite"></div>
 
     <script type="module" src="./app.js"></script>
   </body>

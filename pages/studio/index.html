@@ -3,52 +3,41 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>暗房绘台 · NAI 4.5 旗舰创作工坊</title>
+    <title>暗房绘台 · NAI 4.5 黑曜石创作工坊</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <!-- 极光背景层 -->
-    <div class="ambient-canvas-bg" aria-hidden="true">
-      <div class="glow-orb orb-primary"></div>
-      <div class="glow-orb orb-secondary"></div>
-      <div class="glow-orb orb-tertiary"></div>
-      <div class="grid-overlay"></div>
-    </div>
+    <!-- 极简黑曜石深空网格微光 -->
+    <div class="obsidian-ambient-field" aria-hidden="true"></div>
 
-    <div class="studio-root">
-      <!-- ================= 顶部全局悬浮导航栏 ================= -->
-      <header class="studio-navbar">
-        <div class="nav-left">
-          <div class="studio-brand-badge">
-            <div class="brand-logo-glow">
-              <svg class="brand-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <div class="brand-text-col">
-              <span class="brand-main-title">暗房绘台</span>
-              <span class="brand-version-pill">NAI 4.5 PRO</span>
+    <div class="studio-root-container">
+      <!-- ================= 顶部黑曜石磨砂导航栏 ================= -->
+      <header class="app-topbar">
+        <div class="topbar-left">
+          <div class="brand-unit">
+            <span class="brand-monogram">◈</span>
+            <div class="brand-titles">
+              <span class="brand-name">暗房绘台</span>
+              <span class="brand-tag">OBSIDIAN STUDIO</span>
             </div>
           </div>
-
           <div class="service-pill" id="telemetry-pill">
-            <span class="pulse-beacon" id="status-dot"></span>
-            <span class="service-status-text" id="status-api">连接中</span>
+            <span class="pulse-dot" id="status-dot"></span>
+            <span class="service-name" id="status-api">连接中</span>
           </div>
         </div>
 
-        <!-- 导航核心选项卡 -->
-        <nav class="nav-center-tabs" role="tablist">
-          <button type="button" class="tab-pill active" data-tab="tab-canvas" role="tab" aria-selected="true">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <nav class="nav-segment-cluster" role="tablist">
+          <button type="button" class="segment-btn active" data-tab="tab-canvas" role="tab" aria-selected="true">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             <span>创作画布</span>
           </button>
-          <button type="button" class="tab-pill" data-tab="tab-history" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="segment-btn" data-tab="tab-history" role="tab" aria-selected="false">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
               <line x1="7" y1="2" x2="7" y2="22"/>
               <line x1="17" y1="2" x2="17" y2="22"/>
@@ -59,17 +48,17 @@
               <line x1="17" y1="7" x2="22" y2="7"/>
             </svg>
             <span>画廊档案</span>
-            <span class="tab-counter" id="tab-gallery-count">0</span>
+            <span class="counter-badge" id="tab-gallery-count">0</span>
           </button>
-          <button type="button" class="tab-pill" data-tab="tab-covers" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="segment-btn" data-tab="tab-covers" role="tab" aria-selected="false">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
             <span>载体图库</span>
-            <span class="tab-counter" id="tab-cover-count">0</span>
+            <span class="counter-badge" id="tab-cover-count">0</span>
           </button>
-          <button type="button" class="tab-pill" data-tab="tab-stego" role="tab" aria-selected="false">
-            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" class="segment-btn" data-tab="tab-stego" role="tab" aria-selected="false">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
@@ -77,9 +66,9 @@
           </button>
         </nav>
 
-        <div class="nav-right">
-          <button type="button" id="btn-toggle-theme" class="btn-tool-icon" title="切换深/浅色模式">
-            <svg class="theme-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="topbar-right">
+          <button type="button" id="btn-toggle-theme" class="btn-theme-toggle" title="切换深色/浅色模式">
+            <svg class="theme-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="5"/>
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
             </svg>
@@ -87,7 +76,7 @@
         </div>
       </header>
 
-      <!-- 隐藏状态数据节点（供逻辑读取） -->
+      <!-- 隐藏状态数据节点（供内部脚本读取） -->
       <div hidden>
         <span id="status-model">—</span>
         <span id="status-gallery">0</span>
@@ -95,314 +84,276 @@
       </div>
 
       <!-- ================= 主体工作区 ================= -->
-      <div class="studio-body">
-        <!-- 左侧控制坞 (Composer) -->
-        <aside class="composer-dock composer" aria-label="创作控制面板">
-          <form id="draw-form" class="studio-form-flow">
-            <!-- 1. 灵感与提示词输入卡片 -->
-            <div class="glass-card prompt-composer-card">
-              <div class="card-header-row">
-                <label for="prompt" class="card-title-label">
-                  <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                  </svg>
+      <div class="studio-body-layout">
+        <!-- 左侧参数控制坞 (Composer) -->
+        <aside class="composer-sidebar composer" aria-label="创作参数控制面板">
+          <form id="draw-form" class="composer-flow">
+            <!-- 1. 画面描述核心卡片 -->
+            <div class="obsidian-panel">
+              <div class="panel-head-row">
+                <label for="prompt" class="panel-title">
+                  <span class="title-glyph">✦</span>
                   <span>画面构想 / Prompt</span>
                 </label>
-                <div class="card-action-links">
-                  <button type="button" id="btn-random-prompt" class="action-link-btn" title="随机抽取灵感">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
+                <div class="panel-head-actions">
+                  <button type="button" id="btn-random-prompt" class="subtle-link-btn" title="抽取画面灵感">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="mini-svg">
                       <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
                       <path d="M16 8h.01M8 8h.01M8 16h.01M16 16h.01M12 12h.01"/>
                     </svg>
                     <span>随机灵感</span>
                   </button>
-                  <button type="button" id="btn-clear-prompt" class="action-link-btn">清空</button>
+                  <button type="button" id="btn-clear-prompt" class="subtle-link-btn">清空</button>
                 </div>
               </div>
 
-              <div class="input-focus-frame">
+              <div class="input-obsidian-box">
                 <textarea
                   id="prompt"
                   name="prompt"
                   rows="4"
                   required
-                  placeholder="在此描绘您的灵感构图，例如：雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影..."
+                  placeholder="在此描绘您的画面构想，例如：雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影..."
                 ></textarea>
-                <div class="composer-subbar">
-                  <!-- 灵感标签胶囊 -->
-                  <div class="inspiration-pills-row" id="quick-tags-container">
-                    <button type="button" class="inspire-pill" data-tag="雨夜霓虹, 湿润发丝, 电影级光影">🌃 雨夜霓虹</button>
-                    <button type="button" class="inspire-pill" data-tag="白发红瞳, 绝美五官, 侧光特写">✨ 白发红瞳</button>
-                    <button type="button" class="inspire-pill" data-tag="古风旗袍, 刺绣金线, 柔美光晕">🌸 华美旗袍</button>
-                    <button type="button" class="inspire-pill" data-tag="赛博机能, 机械义肢, 发光线缆">⚡ 赛博机能</button>
-                    <button type="button" class="inspire-pill" data-tag="水下光斑, 漂浮长发, 梦幻水彩">🌊 梦幻水境</button>
+                <div class="input-dock-bar">
+                  <div class="chips-scroll-lane" id="quick-tags-container">
+                    <button type="button" class="tag-capsule" data-tag="雨夜霓虹, 湿润发丝, 电影级光影">雨夜霓虹</button>
+                    <button type="button" class="tag-capsule" data-tag="白发红瞳, 绝美五官, 侧光特写">白发红瞳</button>
+                    <button type="button" class="tag-capsule" data-tag="古风旗袍, 刺绣金线, 柔美光晕">华美旗袍</button>
+                    <button type="button" class="tag-capsule" data-tag="赛博机能, 机械义肢, 发光线缆">赛博机能</button>
+                    <button type="button" class="tag-capsule" data-tag="水下光斑, 漂浮长发, 梦幻水彩">梦幻水境</button>
                   </div>
-                  <span class="hotkey-indicator">Ctrl+↵ 出图</span>
+                  <span class="hotkey-hint">Ctrl + Enter 出图</span>
                 </div>
               </div>
             </div>
 
             <!-- 2. 艺术风格预设选择 -->
-            <div class="glass-card">
-              <div class="card-header-row">
-                <span class="card-title-label">
-                  <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
-                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
-                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
-                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
-                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/>
-                  </svg>
-                  <span>画风预设</span>
+            <div class="obsidian-panel">
+              <div class="panel-head-row">
+                <span class="panel-title">
+                  <span class="title-glyph">◈</span>
+                  <span>艺术风格预设</span>
                 </span>
-                <span class="badge-accent-text" id="preset-summary">老五样</span>
+                <span class="accent-current-val" id="preset-summary">老五样</span>
               </div>
-              <div class="preset-matrix-grid" id="preset-grid" role="radiogroup" aria-label="艺术画风预设"></div>
+              <div class="preset-matrix-grid" id="preset-grid" role="radiogroup" aria-label="画风预设选择"></div>
             </div>
 
-            <!-- 3. 画幅尺寸比例选择 -->
-            <div class="glass-card">
-              <div class="card-header-row">
-                <span class="card-title-label">
-                  <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M3 9h18M9 21V9"/>
-                  </svg>
-                  <span>画幅规格</span>
+            <!-- 3. 画幅尺寸矩阵 -->
+            <div class="obsidian-panel">
+              <div class="panel-head-row">
+                <span class="panel-title">
+                  <span class="title-glyph">◱</span>
+                  <span>画幅尺寸规格</span>
                 </span>
-                <span class="badge-accent-text" id="size-summary">竖图</span>
+                <span class="accent-current-val" id="size-summary">竖图</span>
               </div>
-              <div class="aspect-ratio-selector" id="size-row" role="radiogroup" aria-label="画幅规格"></div>
+              <div class="size-matrix-grid" id="size-row" role="radiogroup" aria-label="画幅尺寸选择"></div>
             </div>
 
             <!-- 4. 画师风格叠加 -->
-            <div class="glass-card">
-              <div class="card-header-row">
-                <label for="artists" class="card-title-label">
-                  <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 19l7-7 3 3-7 7-3-3z"/>
-                    <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
-                    <path d="M2 2l7.586 7.586"/>
-                    <circle cx="11" cy="11" r="2"/>
-                  </svg>
+            <div class="obsidian-panel">
+              <div class="panel-head-row">
+                <label for="artists" class="panel-title">
+                  <span class="title-glyph">✒</span>
                   <span>画师标签叠加</span>
                 </label>
-                <span class="hint-small">支持 NAI 权重括号</span>
+                <span class="muted-note">支持 NAI 权重</span>
               </div>
-              <div class="sleek-search-frame">
+              <div class="text-input-frame">
                 <input
                   id="artists"
                   name="artists"
                   type="text"
-                  class="sleek-text-input"
+                  class="obsidian-input"
                   placeholder="例如：artist:wlop, {artist:guweiz}, 1.2::artist:fuzichoco::"
                   autocomplete="off"
                 />
               </div>
-              <div class="quick-artists-bank">
-                <button type="button" class="quick-artist-tag" data-artist="artist:wlop">+ wlop</button>
-                <button type="button" class="quick-artist-tag" data-artist="artist:guweiz">+ guweiz</button>
-                <button type="button" class="quick-artist-tag" data-artist="artist:fuzichoco">+ fuzichoco</button>
-                <button type="button" class="quick-artist-tag" data-artist="artist:mika pikazo">+ Mika</button>
-                <button type="button" class="quick-artist-tag" data-artist="artist:ask (artist)">+ Ask</button>
-                <button type="button" class="quick-artist-tag" data-artist="artist:tiv">+ Tiv</button>
+              <div class="artist-chips-lane">
+                <button type="button" class="artist-pill" data-artist="artist:wlop">+ wlop</button>
+                <button type="button" class="artist-pill" data-artist="artist:guweiz">+ guweiz</button>
+                <button type="button" class="artist-pill" data-artist="artist:fuzichoco">+ fuzichoco</button>
+                <button type="button" class="artist-pill" data-artist="artist:mika pikazo">+ Mika</button>
+                <button type="button" class="artist-pill" data-artist="artist:ask (artist)">+ Ask</button>
+                <button type="button" class="artist-pill" data-artist="artist:tiv">+ Tiv</button>
               </div>
             </div>
 
-            <!-- 5. 高级开关卡片组 -->
-            <div class="glass-card switches-cluster-card">
-              <label class="switch-row-item">
-                <div class="switch-meta">
-                  <span class="switch-label-main">NSFW 模式</span>
-                  <span class="switch-desc-text">解除内置敏感词压制</span>
+            <!-- 5. 高级开关模块 -->
+            <div class="obsidian-panel switches-panel">
+              <label class="switch-item-row">
+                <div class="switch-labels">
+                  <span class="switch-title-text">NSFW 模式</span>
+                  <span class="switch-sub-text">解除内置敏感词压制</span>
                 </div>
-                <div class="custom-switch-toggle">
+                <div class="obsidian-toggle">
                   <input id="nsfw" type="checkbox" />
-                  <span class="switch-track"></span>
+                  <span class="toggle-rail"></span>
                 </div>
               </label>
 
-              <label class="switch-row-item">
-                <div class="switch-meta">
-                  <span class="switch-label-main">自动脸型增强</span>
-                  <span class="switch-desc-text">自动注入立体五官精细重绘</span>
+              <label class="switch-item-row">
+                <div class="switch-labels">
+                  <span class="switch-title-text">自动脸型增强</span>
+                  <span class="switch-sub-text">自动注入立体五官精修</span>
                 </div>
-                <div class="custom-switch-toggle">
+                <div class="obsidian-toggle">
                   <input id="face" type="checkbox" checked />
-                  <span class="switch-track"></span>
+                  <span class="toggle-rail"></span>
                 </div>
               </label>
 
-              <label class="switch-row-item">
-                <div class="switch-meta">
-                  <span class="switch-label-main">隐写伪装封包</span>
-                  <span class="switch-desc-text">成图隐藏嵌入至随机载体中</span>
+              <label class="switch-item-row">
+                <div class="switch-labels">
+                  <span class="switch-title-text">隐写伪装封包</span>
+                  <span class="switch-sub-text">成图隐藏嵌入至随机载体</span>
                 </div>
-                <div class="custom-switch-toggle">
+                <div class="obsidian-toggle">
                   <input id="stego" type="checkbox" />
-                  <span class="switch-track"></span>
+                  <span class="toggle-rail"></span>
                 </div>
               </label>
             </div>
 
             <!-- 隐写密码字段 -->
-            <div class="glass-card animate-slide" id="stego-password-field" hidden>
-              <div class="card-header-row">
-                <label for="stego-password" class="card-title-label">
-                  <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
+            <div class="obsidian-panel" id="stego-password-field" hidden>
+              <div class="panel-head-row">
+                <label for="stego-password" class="panel-title">
+                  <span class="title-glyph">🔒</span>
                   <span>封包提取密码</span>
                 </label>
-                <span class="hint-small">留空为无密码封装</span>
+                <span class="muted-note">留空为无密码封装</span>
               </div>
-              <div class="sleek-search-frame">
+              <div class="text-input-frame">
                 <input
                   id="stego-password"
                   type="password"
-                  class="sleek-text-input"
+                  class="obsidian-input"
                   placeholder="请设置提取密码（不保存于服务端）"
                   autocomplete="off"
                 />
               </div>
             </div>
 
-            <!-- 6. 核心渲染主按钮 -->
-            <div class="action-submit-zone">
-              <button id="draw-button" type="submit" class="btn-ignite-render">
-                <div class="render-btn-shimmer"></div>
-                <div class="render-btn-inner">
-                  <span class="btn-spinner" id="draw-spinner" hidden></span>
-                  <svg id="draw-btn-icon" class="render-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                  </svg>
-                  <span id="draw-btn-text">立即渲染生成</span>
-                </div>
+            <!-- 6. 核心黑曜石纯粹出图主按钮 -->
+            <div class="composer-submit-section">
+              <button id="draw-button" type="submit" class="btn-obsidian-solid">
+                <span class="btn-sheen"></span>
+                <span class="btn-spinner" id="draw-spinner" hidden></span>
+                <svg id="draw-btn-icon" class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                <span id="draw-btn-text">立即渲染生成</span>
               </button>
-              <p class="render-footnote" id="form-hint">中文将由智能翻译引擎自动转译为官方英文标签</p>
+              <p class="footnote-text" id="form-hint">中文将由智能翻译引擎自动转译为官方高质量英文标签</p>
             </div>
           </form>
         </aside>
 
-        <!-- 右侧主视觉视口 (Workspace) -->
-        <main class="main-stage-viewport workspace">
+        <!-- 右侧主巨幕视口 (Workspace) -->
+        <main class="main-canvas-workspace workspace">
           <!-- 选项卡 1：主画布 -->
-          <section id="tab-canvas" class="tab-viewport-panel active" role="tabpanel">
-            <div class="canvas-immersive-layout">
-              <!-- 画布巨幕区 -->
-              <div class="canvas-theater" id="canvas-viewport">
-                <!-- 空状态展示 -->
-                <div class="empty-theater-placeholder" id="result-empty">
-                  <div class="art-aperture-lens">
-                    <div class="lens-glow-core">
-                      <svg class="aperture-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="14.31" y1="8" x2="20.05" y2="17.94"/>
-                        <line x1="9.69" y1="8" x2="21.17" y2="8"/>
-                        <line x1="7.38" y1="12" x2="13.12" y2="2.06"/>
-                        <line x1="9.69" y1="16" x2="3.95" y2="6.06"/>
-                        <line x1="14.31" y1="16" x2="2.83" y2="16"/>
-                        <line x1="16.62" y1="12" x2="10.88" y2="21.94"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <h2 class="empty-lead-title">暗房巨幕已就绪</h2>
-                  <p class="empty-lead-sub">在左侧描绘灵感并点击“立即渲染生成”，高保真杰作将呈现在此。</p>
+          <section id="tab-canvas" class="tab-pane active" role="tabpanel">
+            <div class="canvas-theater-viewport" id="canvas-viewport">
+              <!-- 初始空状态占位 -->
+              <div class="empty-state-card" id="result-empty">
+                <div class="empty-monogram-box">
+                  <span>◈</span>
                 </div>
-
-                <!-- 生成图呈现画框 -->
-                <div class="artwork-lightbox-wrapper" id="artwork-frame" hidden>
-                  <div class="gold-corner-pin pin-tl"></div>
-                  <div class="gold-corner-pin pin-tr"></div>
-                  <div class="gold-corner-pin pin-bl"></div>
-                  <div class="gold-corner-pin pin-br"></div>
-                  <img id="result-image" class="rendered-masterpiece" alt="当前生成作品" />
-                </div>
+                <h2 class="empty-state-heading">暗房巨幕就绪</h2>
+                <p class="empty-state-caption">在左侧构思画面并点击“立即渲染生成”，高清成图将在此处完整呈现。</p>
               </div>
 
-              <!-- 右侧参数与信息巡检 Dock -->
-              <aside class="artwork-inspector-dock" id="result-dock" hidden>
-                <div class="dock-content-scroller">
-                  <div class="dock-section-head">
-                    <h3 class="dock-heading-title">作品技术参数</h3>
-                    <div class="dock-btn-group">
-                      <button type="button" id="download-result" class="btn-dock-dl-main" disabled>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="7 10 12 15 17 10"/>
-                          <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        <span>保存高清原图</span>
-                      </button>
-                      <button type="button" id="download-stego" class="btn-dock-dl-stego" hidden>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                        <span>保存隐写 PNG 封包</span>
-                      </button>
+              <!-- 成图呈现区（绝对居中展示，无任何多余装饰标线干扰） -->
+              <div class="artwork-display-frame" id="artwork-frame" hidden>
+                <img id="result-image" class="full-artwork-image" alt="当前生成作品" />
+              </div>
+
+              <!-- 悬浮参数与操作 Dock 栏（不挤压主图尺寸，平时轻量悬浮在底部） -->
+              <div class="floating-params-dock" id="result-dock" hidden>
+                <div class="dock-inner-container">
+                  <!-- 快捷操作区 -->
+                  <div class="dock-actions-row">
+                    <button type="button" id="download-result" class="dock-btn dock-btn--primary" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      <span>保存高清原图</span>
+                    </button>
+                    <button type="button" id="download-stego" class="dock-btn dock-btn--stego" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <span>保存隐写 PNG</span>
+                    </button>
+                  </div>
+
+                  <!-- 核心指标气泡 -->
+                  <div class="dock-specs-row" id="result-sheet">
+                    <div class="spec-bubble">
+                      <span class="sb-label">预设:</span>
+                      <span class="sb-val" id="sheet-preset">—</span>
+                    </div>
+                    <div class="spec-bubble">
+                      <span class="sb-label">分辨率:</span>
+                      <span class="sb-val font-mono" id="sheet-size">—</span>
+                    </div>
+                    <div class="spec-bubble">
+                      <span class="sb-label">NSFW:</span>
+                      <span class="sb-val" id="sheet-nsfw">—</span>
+                    </div>
+                    <div class="spec-bubble">
+                      <span class="sb-label">脸型:</span>
+                      <span class="sb-val" id="sheet-face">—</span>
                     </div>
                   </div>
 
-                  <!-- 四宫格指标 -->
-                  <div class="metrics-quad-grid" id="result-sheet">
-                    <div class="metric-quad-cell">
-                      <span class="mq-label">预设画风</span>
-                      <span class="mq-val" id="sheet-preset">—</span>
+                  <!-- 折叠提示词透视 -->
+                  <details class="dock-prompt-details">
+                    <summary class="dock-prompt-summary">
+                      <span>查看提示词与抑制标签</span>
+                      <svg class="summary-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </summary>
+                    <div class="dock-prompts-content">
+                      <div class="prompt-snippet-box">
+                        <div class="snippet-head">
+                          <span>正面标签 (Positive)</span>
+                          <button type="button" class="btn-copy-tag" id="btn-copy-prompt">复制</button>
+                        </div>
+                        <p class="snippet-text font-mono" id="sheet-prompt">—</p>
+                      </div>
+                      <div class="prompt-snippet-box">
+                        <div class="snippet-head">
+                          <span>负面标签 (Negative)</span>
+                          <button type="button" class="btn-copy-tag" id="btn-copy-negative">复制</button>
+                        </div>
+                        <p class="snippet-text font-mono snippet-text--muted" id="sheet-negative">—</p>
+                      </div>
                     </div>
-                    <div class="metric-quad-cell">
-                      <span class="mq-label">分辨率</span>
-                      <span class="mq-val font-mono" id="sheet-size">—</span>
-                    </div>
-                    <div class="metric-quad-cell">
-                      <span class="mq-label">NSFW 状态</span>
-                      <span class="mq-val" id="sheet-nsfw">—</span>
-                    </div>
-                    <div class="metric-quad-cell">
-                      <span class="mq-label">自动脸型</span>
-                      <span class="mq-val" id="sheet-face">—</span>
-                    </div>
-                  </div>
+                  </details>
 
-                  <!-- 提示词透视 -->
-                  <div class="prompts-telemetry-panel">
-                    <div class="prompt-telemetry-block">
-                      <div class="pt-head">
-                        <span class="pt-title">最终正面标签 / Positive Tags</span>
-                        <button type="button" class="btn-copy-mini" id="btn-copy-prompt">复制</button>
-                      </div>
-                      <div class="pt-code-box">
-                        <p class="pt-text font-mono" id="sheet-prompt">—</p>
-                      </div>
-                    </div>
-
-                    <div class="prompt-telemetry-block">
-                      <div class="pt-head">
-                        <span class="pt-title">负面抑制标签 / Negative Tags</span>
-                        <button type="button" class="btn-copy-mini" id="btn-copy-negative">复制</button>
-                      </div>
-                      <div class="pt-code-box pt-code-box--negative">
-                        <p class="pt-text font-mono" id="sheet-negative">—</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="dock-notice-banner" id="result-note" hidden></div>
+                  <div class="dock-notice-bar" id="result-note" hidden></div>
                 </div>
-              </aside>
+              </div>
             </div>
           </section>
 
           <!-- 选项卡 2：画廊档案 -->
-          <section id="tab-history" class="tab-viewport-panel" role="tabpanel" hidden>
-            <div class="subview-scroll-content">
-              <div class="subview-header-bar">
+          <section id="tab-history" class="tab-pane" role="tabpanel" hidden>
+            <div class="gallery-view-container">
+              <div class="gallery-view-header">
                 <div>
-                  <h2 class="subview-title">成图画廊档案库</h2>
-                  <p class="subview-caption">点击任意历史作品可在主巨幕中即时重放与查看完整工程参数</p>
+                  <h2 class="view-main-title">成图画廊档案库</h2>
+                  <p class="view-sub-title">点击任意历史作品可在主巨幕中即时重放与查看工程参数</p>
                 </div>
-                <button type="button" id="btn-refresh-gallery" class="btn-glass-pill-tool">
+                <button type="button" id="btn-refresh-gallery" class="btn-obsidian-tool">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                     <polyline points="23 4 23 10 17 10"/>
                     <polyline points="1 20 1 14 7 14"/>
@@ -411,19 +362,19 @@
                   <span>刷新画廊</span>
                 </button>
               </div>
-              <div class="art-masonry-container" id="gallery"></div>
+              <div class="art-grid-masonry" id="gallery"></div>
             </div>
           </section>
 
           <!-- 选项卡 3：载体图库 -->
-          <section id="tab-covers" class="tab-viewport-panel" role="tabpanel" hidden>
-            <div class="subview-scroll-content">
-              <div class="subview-header-bar">
+          <section id="tab-covers" class="tab-pane" role="tabpanel" hidden>
+            <div class="gallery-view-container">
+              <div class="gallery-view-header">
                 <div>
-                  <h2 class="subview-title">隐写载体图库</h2>
-                  <p class="subview-caption">开启隐写出图时，将从图库中随机抽取一张载体进行像素底层无痕封装</p>
+                  <h2 class="view-main-title">隐写载体图库</h2>
+                  <p class="view-sub-title">开启隐写出图时，将从图库中随机抽取一张载体进行无痕封装</p>
                 </div>
-                <label class="btn-glass-pill-tool btn-glass-pill-tool--accent">
+                <label class="btn-obsidian-tool btn-obsidian-tool--accent">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
@@ -434,89 +385,75 @@
               </div>
 
               <!-- 磁吸拖拽上传区 -->
-              <div class="drop-magnetic-panel" id="cover-drop-zone">
-                <div class="drop-core-wrap">
-                  <div class="drop-lens-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="large-drop-svg">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="17 8 12 3 7 8"/>
-                      <line x1="12" y1="3" x2="12" y2="15"/>
-                    </svg>
-                  </div>
-                  <h3 class="drop-main-title">将载体图片拖拽至此完成上传</h3>
-                  <span class="drop-sub-spec">支持 PNG / JPG / WEBP / BMP 格式，单张不超过 12MB</span>
+              <div class="drop-magnetic-zone" id="cover-drop-zone">
+                <div class="drop-icon-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="drop-svg">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
                 </div>
+                <h3 class="drop-title-text">将载体图片拖拽至此完成上传</h3>
+                <span class="drop-hint-text">支持 PNG / JPG / WEBP / BMP 格式，单张不超过 12MB</span>
               </div>
 
-              <div class="covers-grid-container" id="covers"></div>
+              <div class="covers-grid-layout" id="covers"></div>
             </div>
           </section>
 
           <!-- 选项卡 4：隐写拆封工坊 -->
-          <section id="tab-stego" class="tab-viewport-panel" role="tabpanel" hidden>
-            <div class="subview-scroll-content">
-              <div class="subview-header-bar">
+          <section id="tab-stego" class="tab-pane" role="tabpanel" hidden>
+            <div class="gallery-view-container">
+              <div class="gallery-view-header">
                 <div>
-                  <h2 class="subview-title">隐写拆封工坊</h2>
-                  <p class="subview-caption">直接将机器人发出的原始隐写 PNG 拖入拆封，还原底层高清杰作</p>
+                  <h2 class="view-main-title">隐写拆封工坊</h2>
+                  <p class="view-sub-title">直接将机器人发出的原始隐写 PNG 拖入拆封，还原底层高清原图</p>
                 </div>
               </div>
 
-              <div class="stego-workshop-layout">
-                <div class="glass-card stego-interactive-card">
-                  <div class="drop-magnetic-panel" id="extract-drop-zone">
-                    <div class="drop-core-wrap">
-                      <div class="drop-lens-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="large-drop-svg">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                      </div>
-                      <h3 class="drop-main-title">拖拽原始隐写 PNG 到此处</h3>
-                      <span class="drop-sub-spec">必须使用未经聊天软件二次有损压缩的原文件</span>
-                      <label class="btn-glass-pill-tool" style="margin-top: 16px;">
-                        <span>选择本地文件</span>
-                        <input id="extract-file" type="file" accept="image/png" hidden />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="form-section" style="margin-top: 20px;">
-                    <label for="extract-password" class="card-title-label">
-                      <svg class="header-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+              <div class="stego-workshop-grid">
+                <div class="obsidian-panel stego-dock-card">
+                  <div class="drop-magnetic-zone" id="extract-drop-zone">
+                    <div class="drop-icon-box">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="drop-svg">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                       </svg>
-                      <span>解密提取密码（无密码可留空）</span>
-                    </label>
-                    <div class="sleek-search-frame" style="margin-top: 8px;">
-                      <input
-                        id="extract-password"
-                        type="password"
-                        class="sleek-text-input"
-                        placeholder="若嵌入时设置了密码，在此输入"
-                        autocomplete="off"
-                      />
                     </div>
+                    <h3 class="drop-title-text">拖拽原始隐写 PNG 到此处</h3>
+                    <span class="drop-hint-text">必须使用未经社交软件二次压缩的原始文件</span>
+                    <label class="btn-obsidian-tool" style="margin-top: 16px;">
+                      <span>选择本地文件</span>
+                      <input id="extract-file" type="file" accept="image/png" hidden />
+                    </label>
                   </div>
 
-                  <p class="extract-state-text" id="extract-hint"></p>
+                  <div class="text-input-frame" style="margin-top: 16px;">
+                    <input
+                      id="extract-password"
+                      type="password"
+                      class="obsidian-input"
+                      placeholder="若制图时设置了提取密码，在此输入（无密码留空）"
+                      autocomplete="off"
+                    />
+                  </div>
+
+                  <p class="extract-status-note" id="extract-hint"></p>
                 </div>
 
                 <!-- 拆封还原预览区 -->
-                <div class="glass-card stego-result-preview-card" id="extract-result-panel" hidden>
-                  <div class="result-success-badge">
+                <div class="obsidian-panel stego-result-card" id="extract-result-panel" hidden>
+                  <div class="result-success-tag">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     <span>拆封还原成功</span>
                   </div>
-                  <div class="extracted-art-frame">
+                  <div class="extracted-img-frame">
                     <img id="extract-preview-img" alt="拆封还原成图" />
                   </div>
-                  <button type="button" id="btn-download-extracted" class="btn-ignite-render" style="margin-top: 18px; width: 100%;">
-                    <div class="render-btn-inner">
-                      <span>📥 保存还原出的高清原图</span>
-                    </div>
+                  <button type="button" id="btn-download-extracted" class="btn-obsidian-solid" style="margin-top: 18px; width: 100%;">
+                    <span>📥 保存还原出的高清原图</span>
                   </button>
                 </div>
               </div>
@@ -526,8 +463,8 @@
       </div>
     </div>
 
-    <!-- 全局 Glass Toast 悬浮通知 -->
-    <div id="toast" class="studio-toast-capsule" hidden role="status" aria-live="polite"></div>
+    <!-- 全局悬浮 Obsidian Toast -->
+    <div id="toast" class="obsidian-toast" hidden role="status" aria-live="polite"></div>
 
     <script type="module" src="./app.js"></script>
   </body>

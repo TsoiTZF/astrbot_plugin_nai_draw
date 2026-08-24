@@ -28,6 +28,7 @@ from translator import (  # noqa: E402
     _LOOKUP_CACHE,
     _bangumi_alias_score,
     _bangumi_query_variants,
+    _split_qualified_character,
     _sanitize_llm_output,
     contains_chinese,
     resolve_unknown_names,
@@ -208,6 +209,36 @@ def test_mainland_name_matching():
         _bangumi_alias_score("玛丽", ["玛丽安娜"]) < 80,
         "短名不会因包含关系误认成长名",
     )
+
+
+def test_qualified_name_syntax():
+    print("角色作品限定语法：")
+    check(
+        _split_qualified_character("玛丽@碧蓝档案") == ("玛丽", "碧蓝档案", ""),
+        "@ 为规范限定语法",
+    )
+    check(
+        _split_qualified_character("玛丽（碧蓝档案）") == ("玛丽", "碧蓝档案", ""),
+        "兼容全角括号",
+    )
+    check(
+        _split_qualified_character("玛丽(碧蓝档案)") == ("玛丽", "碧蓝档案", ""),
+        "兼容半角括号",
+    )
+    check(
+        _split_qualified_character("碧蓝档案的玛丽") == ("玛丽", "碧蓝档案", ""),
+        "兼容自然的字句",
+    )
+    check(
+        _split_qualified_character("玛丽 碧蓝档案") == ("玛丽", "碧蓝档案", ""),
+        "兼容双字段空格写法",
+    )
+    check(
+        _split_qualified_character("玛丽@碧蓝档案，蓝发，微笑")
+        == ("玛丽", "碧蓝档案", "蓝发，微笑"),
+        "限定角色后可用逗号追加画面描述",
+    )
+    check(_split_qualified_character("蓝发少女") is None, "普通画面描述不误判为限定语法")
 
 
 def test_sanitize():
@@ -429,7 +460,7 @@ def test_to_tags():
             None, "玛丽", use_llm=False, fetch=ambiguous_fetch
         )
         check(tags == "", "同名角色歧义时不盲猜标签")
-        check("多个候选" in note and "作品名" in note, "歧义时提示补充作品名")
+        check("多个候选" in note and "角色名@作品名" in note, "歧义时给出可执行标准语法")
         check(
             not any("danbooru.donmai.us" in url for url in ambiguity_fetch_calls),
             "Bangumi 已判歧义时不再按 Danbooru 热度猜测",
@@ -438,6 +469,130 @@ def test_to_tags():
             _LOOKUP_CACHE.get("玛丽") == _LOOKUP_AMBIGUOUS,
             "稳定歧义结果进入缓存",
         )
+
+        qualified_calls = []
+
+        def qualified_fetch(url, timeout=8, data=None):
+            qualified_calls.append((url, data))
+            if "api.bgm.tv/v0/search/subjects" in url:
+                return {
+                    "data": [
+                        {
+                            "id": 300648,
+                            "name": "ブルーアーカイブ -Blue Archive-",
+                            "name_cn": "蔚蓝档案",
+                            "type": 4,
+                            "collection": {"collect": 1502, "doing": 1193},
+                        },
+                        {
+                            "id": 416777,
+                            "name": "ブルーアーカイブ The Animation",
+                            "name_cn": "蔚蓝档案 动画版",
+                            "type": 2,
+                            "collection": {"collect": 3990, "doing": 903},
+                        },
+                    ]
+                }
+            if url.endswith("/v0/subjects/300648"):
+                return {
+                    "id": 300648,
+                    "name": "ブルーアーカイブ -Blue Archive-",
+                    "name_cn": "蔚蓝档案",
+                    "type": 4,
+                    "collection": {"collect": 1502, "doing": 1193},
+                    "infobox": [
+                        {"key": "中文名", "value": "蔚蓝档案"},
+                        {
+                            "key": "别名",
+                            "value": [
+                                {"k": "英文名", "v": "Blue Archive"},
+                                {"k": "中文别名", "v": "碧蓝档案"},
+                            ],
+                        },
+                    ],
+                }
+            if url.endswith("/v0/subjects/416777"):
+                return {
+                    "id": 416777,
+                    "name": "ブルーアーカイブ The Animation",
+                    "name_cn": "蔚蓝档案 动画版",
+                    "type": 2,
+                    "collection": {"collect": 3990, "doing": 903},
+                }
+            if url.endswith("/v0/subjects/300648/characters"):
+                return [
+                    {"id": 115861, "name": "伊落マリー", "relation": "配角"},
+                    {"id": 999999, "name": "マリー", "relation": "配角"},
+                ]
+            if "api.bgm.tv/v0/characters/115861" in url:
+                return {
+                    "id": 115861,
+                    "name": "伊落マリー",
+                    "gender": "female",
+                    "stat": {"comments": 25, "collects": 64},
+                    "infobox": [
+                        {"key": "简体中文名", "value": "伊落玛丽"},
+                        {"key": "别名", "value": [{"k": "英文名", "v": "Iochi Mari"}]},
+                    ],
+                }
+            if "api.bgm.tv/v0/characters/999999" in url:
+                return {
+                    "id": 999999,
+                    "name": "マリー",
+                    "gender": "female",
+                    "stat": {"comments": 0, "collects": 1},
+                    "infobox": [{"key": "简体中文名", "value": "别的角色"}],
+                }
+            if "danbooru.donmai.us/tags.json" in url:
+                return []
+            if "danbooru.donmai.us/autocomplete.json" in url:
+                return [
+                    {
+                        "value": "mari_(blue_archive)",
+                        "category": 4,
+                        "post_count": 11225,
+                        "antecedent": "玛丽(碧蓝档案)",
+                    }
+                ]
+            raise AssertionError(f"未预期的限定查询: {url}")
+
+        for prompt in (
+            "玛丽@碧蓝档案",
+            "玛丽（碧蓝档案）",
+            "玛丽(碧蓝档案)",
+            "碧蓝档案的玛丽",
+            "玛丽 碧蓝档案",
+        ):
+            tags, note = await to_tags(None, prompt, use_llm=False, fetch=qualified_fetch)
+            check("mari (blue archive)" in tags, f"{prompt} 可按作品限定角色")
+            check("1girl" in tags and "限定角色" in note, f"{prompt} 返回限定成功提示")
+
+        tags, note = await to_tags(
+            None,
+            "玛丽@碧蓝档案，蓝发，微笑",
+            use_llm=False,
+            fetch=qualified_fetch,
+        )
+        check("mari (blue archive)" in tags, "限定角色标签保留")
+        check("blue hair" in tags and "soft smile" in tags, "限定后其余描述继续翻译")
+        check("blue" not in [tag.strip() for tag in tags.split(",")], "作品名不会被颜色词典拆解")
+        check(
+            any(
+                "autocomplete.json" in url or "search/subjects" in url
+                for url, _ in qualified_calls
+            ),
+            "作品限定使用 Danbooru 精确别名或 Bangumi 作品搜索",
+        )
+
+        def missing_subject_fetch(url, timeout=8, data=None):
+            if "api.bgm.tv/v0/search/subjects" in url:
+                return {"data": []}
+            raise AssertionError(f"作品不存在后不应继续查询: {url}")
+
+        tags, note = await to_tags(
+            None, "玛丽@不存在作品", use_llm=False, fetch=missing_subject_fetch
+        )
+        check(tags == "" and "未找到作品" in note, "作品不存在时返回明确提示")
 
         _LOOKUP_CACHE.clear()
         fuzzy_fetch_calls = []
@@ -615,6 +770,7 @@ def main():
         test_contains_chinese,
         test_lexicon,
         test_mainland_name_matching,
+        test_qualified_name_syntax,
         test_sanitize,
         test_to_tags,
     ):

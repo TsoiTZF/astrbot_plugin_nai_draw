@@ -518,14 +518,20 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.10 "
+    "astrbot_plugin_nai_draw/1.7.11 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
 BANGUMI_SEARCH = "https://api.bgm.tv/v0/search/characters"
 BANGUMI_CHARACTER = "https://api.bgm.tv/v0/characters"
+BANGUMI_SUBJECT_SEARCH = "https://api.bgm.tv/v0/search/subjects"
+BANGUMI_SUBJECT = "https://api.bgm.tv/v0/subjects"
 _LOOKUP_CACHE = {}
 _LOOKUP_CACHE_LIMIT = 256
 _LOOKUP_AMBIGUOUS = "__ambiguous__"
+_QUALIFIED_NAME_RE = re.compile(
+    r"^\s*(?P<character>[一-鿿ぁ-んァ-ンA-Za-z0-9·・.'\- ]{2,40})"
+    r"\s*[（(]\s*(?P<subject>[^()（）@]{1,60})\s*[)）]\s*$"
+)
 _NAME_TOKEN_RE = re.compile(r"[一-鿿ぁ-んァ-ン]{2,12}")
 _LATIN_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 .'\-]{1,80}$")
 _CHINESE_NAME_RE = re.compile(r"[一-鿿]{2,40}")
@@ -534,8 +540,13 @@ _BANGUMI_ALIAS_KEYS = {
 }
 _BANGUMI_LATIN_KEYS = {"英文名", "罗马字"}
 _BANGUMI_SEARCH_LIMIT = 20
+_BANGUMI_SUBJECT_LIMIT = 20
 _BANGUMI_SCORE_THRESHOLD = 80
 _BANGUMI_SCORE_MARGIN = 4
+_DERIVATIVE_SUBJECT_WORDS = {
+    "fanbook", "tribute", "soundtrack", "original soundtrack", "ost",
+    "动画版", "短篇动画", "纪念", "业务日志", "anthology", "アンソロジー",
+}
 
 LLM_INSTRUCTION = (
     "你是 danbooru 标签转换器。把用户的中文画面描述转成英文 danbooru 标签。\n"
@@ -875,6 +886,62 @@ def _pinyin_tokens(text):
     return tuple(lazy_pinyin(normalized, errors="ignore"))
 
 
+def _split_qualified_character(text):
+    """解析角色@作品限定语法，返回 (角色, 作品, 其余描述) 或 None。
+
+    `@` 是规范写法；附加画面描述必须用逗号、分号或换行分隔。
+    括号、“的”和单空格双字段写法仅作兼容。
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+
+    def split_remainder(value):
+        parts = re.split(r"\s*[，,；;\n]\s*", value, maxsplit=1)
+        return parts[0].strip(), (parts[1].strip() if len(parts) > 1 else "")
+
+    if "@" in raw:
+        character, subject_part = raw.split("@", 1)
+        character = character.strip()
+        subject, remainder = split_remainder(subject_part)
+        if 2 <= len(character) <= 40 and 1 <= len(subject) <= 60:
+            return character, subject, remainder
+        return None
+
+    parenthesized = re.fullmatch(
+        r"\s*(?P<character>[一-鿿ぁ-んァ-ンA-Za-z0-9·・.'\- ]{2,40})"
+        r"\s*[（(]\s*(?P<subject>[^()（）@]{1,60})\s*[)）]"
+        r"(?:\s*[，,；;]\s*(?P<remainder>.+))?\s*",
+        raw,
+    )
+    if parenthesized:
+        return (
+            parenthesized.group("character").strip(),
+            parenthesized.group("subject").strip(),
+            str(parenthesized.group("remainder") or "").strip(),
+        )
+
+    natural = re.fullmatch(
+        r"\s*(?P<subject>[^@()（），,；;]{2,40})的"
+        r"(?P<character>[^@()（），,；;]{2,20})"
+        r"(?:\s*[，,；;]\s*(?P<remainder>.+))?\s*",
+        raw,
+    )
+    if natural:
+        return (
+            natural.group("character").strip(),
+            natural.group("subject").strip(),
+            str(natural.group("remainder") or "").strip(),
+        )
+
+    parts = [part for part in re.split(r"\s+", raw) if part]
+    if len(parts) == 2:
+        character, subject = parts
+        if contains_chinese(character) and contains_chinese(subject):
+            return character, subject, ""
+    return None
+
+
 def _bangumi_query_variants(name):
     """生成有限个召回词，完整名称优先，再逐步缩短尾部或首部。"""
     token = _normalize_chinese_name(name)
@@ -901,7 +968,9 @@ def _bangumi_alias_score(name, aliases):
         if candidate == query:
             best = max(best, 100)
             continue
-        if len(query) >= 3 and (query in candidate or candidate in query):
+        if len(query) >= 2 and candidate.endswith(query):
+            best = max(best, 90 if len(query) == 2 else 94)
+        elif len(query) >= 3 and (query in candidate or candidate in query):
             shorter = min(len(query), len(candidate))
             longer = max(len(query), len(candidate))
             if shorter >= 3:
@@ -953,6 +1022,201 @@ def _bangumi_latin_candidates(detail):
 def _bangumi_latin_tag(detail):
     candidates = _bangumi_latin_candidates(detail)
     return candidates[0] if candidates else None
+
+
+def _subject_aliases(detail):
+    names = []
+    if not isinstance(detail, dict):
+        return names
+    for key in ("name_cn", "name"):
+        value = str(detail.get(key) or "").strip()
+        if value:
+            names.append(value)
+    for key, value in _infobox_pairs(detail.get("infobox")):
+        if key in {"中文名", "简体中文名", "中文别名", "别名", "英文名"} or contains_chinese(value):
+            parts = re.split(r"[/／|｜、,，;；\n]+", value)
+            names.extend(part.strip() for part in parts if part.strip())
+    return list(dict.fromkeys(names))
+
+
+def _subject_popularity(detail):
+    collection = detail.get("collection") if isinstance(detail, dict) else None
+    if not isinstance(collection, dict):
+        return 0
+    total = 0
+    for key in ("collect", "doing", "wish", "on_hold"):
+        try:
+            total += int(collection.get(key) or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def _subject_derivative_penalty(detail):
+    text = " ".join(
+        str(detail.get(key) or "").lower()
+        for key in ("name", "name_cn")
+        if isinstance(detail, dict)
+    )
+    return 1 if any(word in text for word in _DERIVATIVE_SUBJECT_WORDS) else 0
+
+
+def _subject_score(name, detail):
+    aliases = _subject_aliases(detail)
+    base = _bangumi_alias_score(name, aliases)
+    if base <= 0:
+        return 0
+    normalized = _normalize_chinese_name(name)
+    exact = any(_normalize_chinese_name(alias) == normalized for alias in aliases)
+    if exact:
+        base = max(base, 100)
+    if _subject_derivative_penalty(detail):
+        base -= 12
+    # 用户给出大陆游戏名时优先主游戏，不让动画、FANBOOK 或 OST 抢占。
+    if int(detail.get("type") or 0) == 4:
+        base += 3
+    return max(0, min(103, base))
+
+
+def _search_bangumi_subject(subject_name, fetch):
+    payload = _call_fetch(
+        fetch,
+        f"{BANGUMI_SUBJECT_SEARCH}?limit={_BANGUMI_SUBJECT_LIMIT}",
+        data={
+            "keyword": subject_name,
+            "sort": "match",
+            "filter": {"type": [1, 2, 3, 4, 6]},
+        },
+    )
+    if isinstance(payload, dict):
+        items = payload.get("data") or []
+    elif isinstance(payload, list):
+        items = payload
+    else:
+        items = []
+    scored = []
+    for rank, item in enumerate(items[:_BANGUMI_SUBJECT_LIMIT]):
+        if not isinstance(item, dict):
+            continue
+        subject_id = item.get("id")
+        detail = item
+        if subject_id not in (None, ""):
+            try:
+                fetched = _call_fetch(fetch, f"{BANGUMI_SUBJECT}/{subject_id}")
+                if isinstance(fetched, dict) and fetched:
+                    detail = fetched
+            except Exception:
+                detail = item
+        score = _subject_score(subject_name, detail)
+        if score <= 0:
+            continue
+        scored.append((score, _subject_popularity(detail), -rank, detail))
+    if not scored:
+        return None, False
+    scored.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
+    best = scored[0]
+    if best[0] < _BANGUMI_SCORE_THRESHOLD:
+        return None, False
+    if len(scored) > 1 and best[0] - scored[1][0] < _BANGUMI_SCORE_MARGIN:
+        return None, True
+    return best[3], False
+
+
+def _subject_character_candidates(subject_id, fetch):
+    payload = _call_fetch(fetch, f"{BANGUMI_SUBJECT}/{subject_id}/characters")
+    if not isinstance(payload, list):
+        return []
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def _lookup_danbooru_qualified_alias(character_name, subject_name, fetch):
+    """优先使用 Danbooru 已收录的“角色(作品)”中文别名，速度快且精确。"""
+    query_text = f"{str(character_name).strip()}({str(subject_name).strip()})"
+    query = urllib.parse.urlencode(
+        {
+            "search[query]": query_text,
+            "search[type]": "tag",
+            "limit": 10,
+        }
+    )
+    payload = _call_fetch(fetch, f"{DANBOORU_AUTOCOMPLETE}?{query}")
+    if not isinstance(payload, list):
+        return ""
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        try:
+            category = int(item.get("category"))
+        except (TypeError, ValueError):
+            continue
+        antecedent = str(item.get("antecedent") or "").strip()
+        if category != 4 or antecedent != query_text:
+            continue
+        tag = _tag_from_title(item.get("value") or item.get("label"))
+        if tag:
+            return f"1girl, {tag}"
+    return ""
+
+
+def _resolve_qualified_character(character_name, subject_name, fetch):
+    try:
+        direct = _lookup_danbooru_qualified_alias(character_name, subject_name, fetch)
+    except Exception as exc:
+        logger.debug(f"[叶子的逼] Danbooru 作品限定别名查询失败，回退 Bangumi: {exc}")
+        direct = ""
+    if direct:
+        return direct, False, ""
+
+    subject, subject_ambiguous = _search_bangumi_subject(subject_name, fetch)
+    if subject_ambiguous:
+        return "", True, "作品名存在多个候选，请使用更完整的作品名"
+    if not subject or subject.get("id") in (None, ""):
+        return "", False, f"未找到作品：{subject_name}"
+
+    rough = []
+    for rank, item in enumerate(_subject_character_candidates(subject["id"], fetch)):
+        score = _bangumi_alias_score(character_name, [item.get("name")])
+        if score > 0:
+            rough.append((score, -rank, item))
+    rough.sort(key=lambda row: (row[0], row[1]), reverse=True)
+
+    # 列表通常只有日文名，先保留高分项；若没有粗匹配则扫描全部角色详情。
+    pool = [row[2] for row in rough[:12]] if rough and rough[0][0] >= 70 else []
+    if not pool:
+        pool = _subject_character_candidates(subject["id"], fetch)
+
+    scored = []
+    for rank, item in enumerate(pool):
+        detail = _fetch_bangumi_detail(item, fetch)
+        if not detail:
+            continue
+        score = _bangumi_alias_score(character_name, _bangumi_aliases(detail))
+        if score <= 0:
+            continue
+        scored.append((score, _bangumi_popularity(detail), -rank, detail))
+    if not scored:
+        return "", False, f"作品《{subject_name}》中未找到角色：{character_name}"
+    scored.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
+    best = scored[0]
+    if best[0] < _BANGUMI_SCORE_THRESHOLD:
+        return "", False, f"作品《{subject_name}》中未找到高置信角色：{character_name}"
+    if len(scored) > 1 and best[0] - scored[1][0] < _BANGUMI_SCORE_MARGIN:
+        return "", True, "角色名在该作品中仍有多个候选，请使用完整角色名"
+
+    detail = best[3]
+    person = _bangumi_person_tag(detail)
+    latin_candidates = _bangumi_latin_candidates(detail)
+    danbooru = None
+    try:
+        danbooru = _lookup_danbooru_latin(latin_candidates, fetch)
+    except Exception as exc:
+        logger.debug(f"[叶子的逼] 限定角色 Danbooru 校准失败: {exc}")
+    if danbooru:
+        return f"{person}, {danbooru}", False, ""
+    latin = latin_candidates[0] if latin_candidates else None
+    if latin:
+        return f"{person}, {latin}", False, ""
+    return "", False, f"已找到角色，但缺少可用英文标签：{character_name}"
 
 
 def _bangumi_person_tag(detail):
@@ -1198,7 +1462,11 @@ def _lookup_danbooru_latin(latin_candidates, fetch):
             score = (1 if query_text == normalized else 0, similarity, posts)
             if best is None or score > best[0]:
                 best = (score, tag)
-        if best and (best[0][0] or best[0][1] >= 0.86):
+        if best and (
+            best[0][0]
+            or best[0][1] >= 0.86
+            or best[0][2] >= 100
+        ):
             return best[1]
     return None
 
@@ -1327,6 +1595,36 @@ async def to_tags(context, text, use_llm=True, fetch=None):
     if not contains_chinese(raw):
         return raw, ""
 
+    qualified = _split_qualified_character(raw)
+    if qualified:
+        character_name, subject_name, remainder = qualified
+        try:
+            character_tags, ambiguous, error = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _resolve_qualified_character,
+                    character_name,
+                    subject_name,
+                    fetch or _fetch_json,
+                ),
+                timeout=15,
+            )
+        except Exception as exc:
+            logger.debug(f"[叶子的逼] 角色作品限定查询失败: {exc}")
+            character_tags, ambiguous, error = "", False, "角色作品限定查询失败，请稍后重试"
+        if ambiguous:
+            return "", error or "角色或作品仍有多个候选，请使用更完整名称"
+        if not character_tags:
+            return "", error or "未能识别角色与作品，请检查名称"
+        if not remainder:
+            return character_tags, "已按作品限定角色"
+        remainder_tags, remainder_note = await to_tags(
+            context, remainder, use_llm=use_llm, fetch=fetch
+        )
+        merged = ", ".join(_dedupe_tags(character_tags, remainder_tags))
+        if remainder_tags:
+            return merged, "已按作品限定角色并翻译其余描述"
+        return character_tags, remainder_note or "已按作品限定角色"
+
     lexicon_tags, leftover = translate_by_lexicon(raw)
     danbooru_tags = ""
     ambiguous_name = False
@@ -1342,7 +1640,10 @@ async def to_tags(context, text, use_llm=True, fetch=None):
     merged = ", ".join(_dedupe_tags(lexicon_tags, danbooru_tags))
 
     if ambiguous_name:
-        return "", "角色名存在多个候选，请补充作品名或使用更完整的角色名"
+        return "", (
+            "角色名存在多个候选，请使用 /nai 角色名@作品名，"
+            "例如 /nai 玛丽@碧蓝档案"
+        )
 
     if use_llm and leftover:
         llm_tags = await translate_by_llm(context, raw)

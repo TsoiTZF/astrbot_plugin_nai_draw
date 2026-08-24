@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.7.10
+"""AstrBot 叶子的逼插件 v1.7.11
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -46,7 +46,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.7.10")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.7.11")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)

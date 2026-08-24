@@ -156,6 +156,20 @@ def test_lexicon():
     check("2b (nier:automata)" not in tags, "2b 不截断 2boys")
     check("2boys" in tags and "1girl" in tags, "英文人数标签原样保留")
 
+    tags, leftover = translate_by_lexicon("神里绫华")
+    check("kamisato ayaka (genshin impact)" in tags, "神里绫华 命中规范角色标签")
+    check("genshin impact" in tags and "1girl" in tags, "神里绫华 补作品和人数标签")
+    check(leftover == "", "神里绫华 无残留")
+
+    tags, leftover = translate_by_lexicon("神里綾華")
+    check("kamisato ayaka (genshin impact)" in tags, "神里綾華繁体名命中")
+    check(leftover == "", "神里綾華 无残留")
+
+    tags, leftover = translate_by_lexicon("长发神里绫华，和服")
+    check("long hair" in tags, "神里绫华混写保留发型")
+    check("kamisato ayaka (genshin impact)" in tags, "神里绫华混写保留角色")
+    check("kimono" in tags and leftover == "", "神里绫华混写保留服装且无残留")
+
 
 def test_sanitize():
     print("LLM 输出清洗：")
@@ -315,6 +329,108 @@ def test_to_tags():
         )
         check("yae miko" in tags, "单发未知角色名走国内 Bangumi")
         check("智能翻译" in note, "Bangumi 命中后仍提示已智能翻译")
+
+        def reject_known_character_fetch(url, timeout=8, data=None):
+            raise AssertionError(f"内置角色不应查询外网: {url}")
+
+        ctx = FakeContext(GuardProvider(reply="should not run"))
+        tags, note = await to_tags(
+            ctx, "神里绫华", use_llm=True, fetch=reject_known_character_fetch
+        )
+        check("kamisato ayaka (genshin impact)" in tags, "单发神里绫华走内置词典")
+        check("genshin impact" in tags and "1girl" in tags, "神里绫华使用完整标签")
+        check("智能翻译" in note, "神里绫华仍提示已智能翻译")
+
+        _LOOKUP_CACHE.clear()
+        queried_keywords = []
+
+        def name_with_stopword_fetch(url, timeout=8, data=None):
+            if "api.bgm.tv/v0/search/characters" in url:
+                queried_keywords.append((data or {}).get("keyword"))
+                return {
+                    "data": [
+                        {
+                            "id": 90001,
+                            "name": "Hoshisato Test",
+                            "name_cn": "星里测试",
+                        }
+                    ]
+                }
+            if "api.bgm.tv/v0/characters/90001" in url:
+                return {
+                    "id": 90001,
+                    "name": "Hoshisato Test",
+                    "name_cn": "星里测试",
+                    "gender": "female",
+                    "infobox": [{"key": "罗马字", "value": "Hoshisato Test"}],
+                }
+            raise AssertionError(f"未预期的查询: {url}")
+
+        tags, note = await to_tags(
+            None, "星里测试", use_llm=False, fetch=name_with_stopword_fetch
+        )
+        check(queried_keywords == ["星里测试"], "含停用字的专名仍按完整原名查询")
+        check("hoshisato test" in tags, "含停用字的未知专名可由 Bangumi 命中")
+        check(note == "已智能翻译", "含停用字专名命中后返回成功提示")
+
+        _LOOKUP_CACHE.clear()
+        fallback_calls = []
+
+        def danbooru_fallback_fetch(url, timeout=8, data=None):
+            fallback_calls.append(url)
+            if "api.bgm.tv/v0/search/characters" in url:
+                raise TimeoutError("模拟 Bangumi 超时")
+            if "danbooru.donmai.us/wiki_pages.json" in url:
+                return [
+                    {
+                        "title": "kamisato_ayaka_(genshin_impact)",
+                        "other_names": ["测试绫华"],
+                    }
+                ]
+            raise AssertionError(f"未预期的查询: {url}")
+
+        tags, leftover = resolve_unknown_names("测试绫华", fetch=danbooru_fallback_fetch)
+        check("kamisato ayaka (genshin impact)" in tags, "Bangumi 超时后回退 Danbooru Wiki")
+        check(any("wiki_pages.json" in url for url in fallback_calls), "Bangumi 异常不会截断回退链")
+        check(leftover == "", "Danbooru 回退命中后无残留")
+
+        _LOOKUP_CACHE.clear()
+        recovery_calls = []
+
+        def failed_fetch(url, timeout=8, data=None):
+            recovery_calls.append(("失败", url))
+            raise TimeoutError("模拟全部来源暂时不可用")
+
+        tags, leftover = resolve_unknown_names("星里恢复", fetch=failed_fetch)
+        check(tags == "" and leftover == "星 恢复", "首次网络故障安全降级")
+        check("星里恢复" not in _LOOKUP_CACHE, "网络异常空结果不写入负缓存")
+
+        def recovered_fetch(url, timeout=8, data=None):
+            recovery_calls.append(("恢复", url))
+            if "api.bgm.tv/v0/search/characters" in url:
+                return {
+                    "data": [
+                        {
+                            "id": 90002,
+                            "name": "Hoshisato Recovery",
+                            "name_cn": "星里恢复",
+                        }
+                    ]
+                }
+            if "api.bgm.tv/v0/characters/90002" in url:
+                return {
+                    "id": 90002,
+                    "name": "Hoshisato Recovery",
+                    "name_cn": "星里恢复",
+                    "gender": "female",
+                    "infobox": [{"key": "罗马字", "value": "Hoshisato Recovery"}],
+                }
+            raise AssertionError(f"未预期的查询: {url}")
+
+        tags, leftover = resolve_unknown_names("星里恢复", fetch=recovered_fetch)
+        check("hoshisato recovery" in tags, "同名查询可在网络恢复后成功")
+        check(any(kind == "恢复" for kind, _ in recovery_calls), "网络恢复后确实重新发起请求")
+        check(leftover == "", "恢复查询命中后无残留")
 
         def boom_fetch(url, timeout=8, data=None):
             raise TimeoutError("模拟外网超时")

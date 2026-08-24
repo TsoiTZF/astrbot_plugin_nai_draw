@@ -106,6 +106,8 @@ LEXICON = {
     "波奇": "1girl, gotoh hitori, bocchi the rock!",
     "伊蕾娜": "1girl, elaina (majo no tabitabi), majo no tabitabi",
     "薇尔莉特": "1girl, violet evergarden, violet evergarden (series)",
+    "神里绫华": "1girl, kamisato ayaka (genshin impact), genshin impact",
+    "神里綾華": "1girl, kamisato ayaka (genshin impact), genshin impact",
 
     # ---- 发长与发型 ----
     "拖地长发": "absurdly long hair",
@@ -509,7 +511,7 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.7 "
+    "astrbot_plugin_nai_draw/1.7.9 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
 BANGUMI_SEARCH = "https://api.bgm.tv/v0/search/characters"
@@ -1002,32 +1004,44 @@ def lookup_name_sync(name, fetch=None):
     if hit:
         return cached
     fetch = fetch or _fetch_json
-    tag = ""
-    try:
-        tag = (
-            _lookup_bangumi(token, fetch)
-            or _lookup_wiki(token, fetch)
-            or _lookup_autocomplete(token, fetch)
-            or ""
-        )
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-        logger.debug(f"[叶子的逼] Danbooru 角色查询失败: {exc}")
-        tag = ""
-    except Exception as exc:
-        logger.debug(f"[叶子的逼] Danbooru 角色查询异常: {exc}")
-        tag = ""
-    _cache_set(token, tag)
-    return tag
+    had_error = False
+    lookups = (
+        ("Bangumi", _lookup_bangumi),
+        ("Danbooru Wiki", _lookup_wiki),
+        ("Danbooru 自动补全", _lookup_autocomplete),
+    )
+    for source, lookup in lookups:
+        try:
+            tag = lookup(token, fetch) or ""
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            had_error = True
+            logger.debug(f"[叶子的逼] {source} 角色查询失败: {exc}")
+            continue
+        except Exception as exc:
+            had_error = True
+            logger.debug(f"[叶子的逼] {source} 角色查询异常: {exc}")
+            continue
+        if tag:
+            _cache_set(token, tag)
+            return tag
+    if not had_error:
+        _cache_set(token, "")
+    return ""
 
 
 def _pure_name_query(raw, leftover):
-    """只在用户几乎整段都是角色/作品名时查库，避免普通画面描述被外网拖死。"""
+    """只在用户几乎整段都是角色/作品名时查库，避免普通画面描述被外网拖死。
+
+    残留在词典层会剥离“里”等口语停用字，因此判断时允许残留等于原名剥离
+    停用词后的结果；真正查询时始终返回完整原名，不能破坏角色姓氏。
+    """
     leftover = str(leftover or "").strip()
     if not leftover:
         return []
     compact_raw = re.sub(r"[^一-鿿ぁ-んァ-ン]+", "", str(raw or ""))
     compact_left = re.sub(r"\s+", "", leftover)
-    if not compact_raw or compact_raw != compact_left:
+    stripped_raw = re.sub(r"\s+", "", _strip_stopwords(compact_raw))
+    if not compact_raw or compact_left not in {compact_raw, stripped_raw}:
         return []
     if not (2 <= len(compact_raw) <= 12):
         return []
@@ -1041,15 +1055,17 @@ def resolve_unknown_names(leftover, fetch=None, raw=""):
         return "", ""
     found = []
     remaining = leftover
-    names = _pure_name_query(raw, leftover) or (
-        _name_candidates(leftover) if not raw else []
-    )
+    pure_names = _pure_name_query(raw, leftover)
+    names = pure_names or (_name_candidates(leftover) if not raw else [])
     for name in names[:1]:
         tag = lookup_name_sync(name, fetch=fetch)
         if not tag:
             continue
         found.append(tag)
-        remaining = remaining.replace(name, ",")
+        if pure_names:
+            remaining = ""
+        else:
+            remaining = remaining.replace(name, ",")
     leftover_cn = _strip_stopwords("".join(re.findall(r"[一-鿿]+", remaining)))
     return ", ".join(_dedupe_tags(*found)), leftover_cn
 

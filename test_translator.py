@@ -24,7 +24,10 @@ sys.modules.setdefault("astrbot.api", _fake_api)
 import translator as translator_mod  # noqa: E402
 from translator import (  # noqa: E402
     LEXICON,
+    _LOOKUP_AMBIGUOUS,
     _LOOKUP_CACHE,
+    _bangumi_alias_score,
+    _bangumi_query_variants,
     _sanitize_llm_output,
     contains_chinese,
     resolve_unknown_names,
@@ -170,6 +173,42 @@ def test_lexicon():
     check("kamisato ayaka (genshin impact)" in tags, "神里绫华混写保留角色")
     check("kimono" in tags and leftover == "", "神里绫华混写保留服装且无残留")
 
+    for alias in ("可玛莉", "可瑪莉", "黛拉可玛莉", "缇拉鞠"):
+        tags, leftover = translate_by_lexicon(alias)
+        check("terakomari gandezblood" in tags, f"{alias} 命中规范角色标签")
+        check(
+            "hikikomari kyuuketsuki no monmon" in tags and "1girl" in tags,
+            f"{alias} 补作品和人数标签",
+        )
+        check(leftover == "", f"{alias} 无残留")
+
+    tags, leftover = translate_by_lexicon("金发红眼的可玛莉，吸血鬼")
+    check("blonde hair" in tags and "red eyes" in tags, "可玛莉混写保留外观")
+    check("terakomari gandezblood" in tags, "可玛莉混写保留角色")
+    check("vampire" in tags and leftover == "", "可玛莉混写保留种族且无残留")
+
+
+def test_mainland_name_matching():
+    print("大陆角色名匹配：")
+    check(_bangumi_query_variants("可玛丽")[0] == "可玛丽", "完整名称优先查询")
+    check("可玛" in _bangumi_query_variants("可玛丽"), "失败时生成有限短查询")
+    check(
+        _bangumi_alias_score("可玛丽", ["可玛莉"]) == 96,
+        "同音异字获得高置信分数",
+    )
+    check(
+        _bangumi_alias_score("神里凌华", ["神里绫华"]) == 96,
+        "大陆常见错字可按拼音识别",
+    )
+    check(
+        _bangumi_alias_score("八重神了", ["八重神子"]) >= 80,
+        "单字误写仍达到候选门槛",
+    )
+    check(
+        _bangumi_alias_score("玛丽", ["玛丽安娜"]) < 80,
+        "短名不会因包含关系误认成长名",
+    )
+
 
 def test_sanitize():
     print("LLM 输出清洗：")
@@ -299,10 +338,10 @@ def test_to_tags():
                 }
             raise AssertionError(f"未预期的查询: {url}")
 
-        tags, leftover = resolve_unknown_names("八重神子", fetch=fake_fetch)
+        tags, leftover, ambiguous = resolve_unknown_names("八重神子", fetch=fake_fetch)
         check("yae miko" in tags, "未知角色名可查国内 Bangumi")
         check("1girl" in tags, "Bangumi 命中后补人数标签")
-        check(leftover == "", "查到角色后无残留")
+        check(leftover == "" and ambiguous is False, "查到角色后无残留且不歧义")
 
         def no_fetch(url, timeout=8, data=None):
             raise AssertionError(f"普通画面描述不应查询外网: {url}")
@@ -341,6 +380,125 @@ def test_to_tags():
         check("genshin impact" in tags and "1girl" in tags, "神里绫华使用完整标签")
         check("智能翻译" in note, "神里绫华仍提示已智能翻译")
 
+        ctx = FakeContext(GuardProvider(reply="should not run"))
+        tags, note = await to_tags(
+            ctx, "可玛莉", use_llm=True, fetch=reject_known_character_fetch
+        )
+        check("terakomari gandezblood" in tags, "单发标准可玛莉走内置词典")
+        check(
+            "hikikomari kyuuketsuki no monmon" in tags and "1girl" in tags,
+            "标准可玛莉使用完整标签",
+        )
+        check("智能翻译" in note, "标准可玛莉仍提示已智能翻译")
+
+        _LOOKUP_CACHE.clear()
+        ambiguity_fetch_calls = []
+
+        def ambiguous_fetch(url, timeout=8, data=None):
+            ambiguity_fetch_calls.append(url)
+            if "api.bgm.tv/v0/search/characters" in url:
+                return {
+                    "data": [
+                        {"id": 91001, "name": "Marie One"},
+                        {"id": 91002, "name": "Marie Two"},
+                    ]
+                }
+            if "api.bgm.tv/v0/characters/91001" in url:
+                return {
+                    "id": 91001,
+                    "name": "Marie One",
+                    "gender": "female",
+                    "infobox": [
+                        {"key": "简体中文名", "value": "玛丽"},
+                        {"key": "英文名", "value": "Marie One"},
+                    ],
+                }
+            if "api.bgm.tv/v0/characters/91002" in url:
+                return {
+                    "id": 91002,
+                    "name": "Marie Two",
+                    "gender": "female",
+                    "infobox": [
+                        {"key": "简体中文名", "value": "玛丽"},
+                        {"key": "英文名", "value": "Marie Two"},
+                    ],
+                }
+            raise AssertionError(f"歧义后不应继续 Danbooru: {url}")
+
+        tags, note = await to_tags(
+            None, "玛丽", use_llm=False, fetch=ambiguous_fetch
+        )
+        check(tags == "", "同名角色歧义时不盲猜标签")
+        check("多个候选" in note and "作品名" in note, "歧义时提示补充作品名")
+        check(
+            not any("danbooru.donmai.us" in url for url in ambiguity_fetch_calls),
+            "Bangumi 已判歧义时不再按 Danbooru 热度猜测",
+        )
+        check(
+            _LOOKUP_CACHE.get("玛丽") == _LOOKUP_AMBIGUOUS,
+            "稳定歧义结果进入缓存",
+        )
+
+        _LOOKUP_CACHE.clear()
+        fuzzy_fetch_calls = []
+
+        def fuzzy_mainland_fetch(url, timeout=8, data=None):
+            fuzzy_fetch_calls.append((url, data))
+            if "api.bgm.tv/v0/search/characters" in url:
+                keyword = (data or {}).get("keyword")
+                if keyword == "可玛":
+                    return {
+                        "data": [
+                            {"id": 92001, "name": "Komako Semenovich"},
+                            {"id": 92002, "name": "Terakomari Gandesblood"},
+                        ]
+                    }
+                return {"data": []}
+            if "api.bgm.tv/v0/characters/92001" in url:
+                return {
+                    "id": 92001,
+                    "name": "Komako Semenovich",
+                    "gender": "female",
+                    "stat": {"comments": 9, "collects": 55},
+                    "infobox": [
+                        {"key": "简体中文名", "value": "可玛可·塞梅诺碧琪"},
+                        {"key": "英文名", "value": "Komako Semenovich"},
+                    ],
+                }
+            if "api.bgm.tv/v0/characters/92002" in url:
+                return {
+                    "id": 92002,
+                    "name": "Terakomari Gandesblood",
+                    "gender": "female",
+                    "stat": {"comments": 75, "collects": 174},
+                    "infobox": [
+                        {"key": "简体中文名", "value": "缇拉鞠·加德斯布拉德"},
+                        {"key": "别名", "value": [{"k": "昵称", "v": "可玛莉"}]},
+                        {"key": "英文名", "value": "Terakomari Gandesblood"},
+                    ],
+                }
+            if "danbooru.donmai.us/tags.json" in url:
+                return [{"name": "terakomari_gandesblood", "category": 0, "post_count": 0}]
+            if "danbooru.donmai.us/autocomplete.json" in url:
+                return [
+                    {
+                        "value": "terakomari_gandezblood",
+                        "category": 4,
+                        "post_count": 196,
+                    }
+                ]
+            raise AssertionError(f"未预期的查询: {url}")
+
+        tags, note = await to_tags(
+            None, "可玛丽", use_llm=False, fetch=fuzzy_mainland_fetch
+        )
+        check("terakomari gandezblood" in tags, "大陆别名同音异字可自动命中")
+        check("1girl" in tags and note == "已智能翻译", "高置信候选自动采用")
+        check(
+            any((data or {}).get("keyword") == "可玛" for _, data in fuzzy_fetch_calls if data),
+            "完整名称无结果后使用有限短查询召回",
+        )
+
         _LOOKUP_CACHE.clear()
         queried_keywords = []
 
@@ -369,7 +527,8 @@ def test_to_tags():
         tags, note = await to_tags(
             None, "星里测试", use_llm=False, fetch=name_with_stopword_fetch
         )
-        check(queried_keywords == ["星里测试"], "含停用字的专名仍按完整原名查询")
+        check(queried_keywords[0] == "星里测试", "含停用字的专名优先按完整原名查询")
+        check(len(queried_keywords) <= 5, "角色模糊召回请求数量受限")
         check("hoshisato test" in tags, "含停用字的未知专名可由 Bangumi 命中")
         check(note == "已智能翻译", "含停用字专名命中后返回成功提示")
 
@@ -389,10 +548,12 @@ def test_to_tags():
                 ]
             raise AssertionError(f"未预期的查询: {url}")
 
-        tags, leftover = resolve_unknown_names("测试绫华", fetch=danbooru_fallback_fetch)
+        tags, leftover, ambiguous = resolve_unknown_names(
+            "测试绫华", fetch=danbooru_fallback_fetch
+        )
         check("kamisato ayaka (genshin impact)" in tags, "Bangumi 超时后回退 Danbooru Wiki")
         check(any("wiki_pages.json" in url for url in fallback_calls), "Bangumi 异常不会截断回退链")
-        check(leftover == "", "Danbooru 回退命中后无残留")
+        check(leftover == "" and ambiguous is False, "Danbooru 回退命中后无残留")
 
         _LOOKUP_CACHE.clear()
         recovery_calls = []
@@ -401,8 +562,9 @@ def test_to_tags():
             recovery_calls.append(("失败", url))
             raise TimeoutError("模拟全部来源暂时不可用")
 
-        tags, leftover = resolve_unknown_names("星里恢复", fetch=failed_fetch)
+        tags, leftover, ambiguous = resolve_unknown_names("星里恢复", fetch=failed_fetch)
         check(tags == "" and leftover == "星 恢复", "首次网络故障安全降级")
+        check(ambiguous is False, "网络故障不误报角色歧义")
         check("星里恢复" not in _LOOKUP_CACHE, "网络异常空结果不写入负缓存")
 
         def recovered_fetch(url, timeout=8, data=None):
@@ -427,17 +589,20 @@ def test_to_tags():
                 }
             raise AssertionError(f"未预期的查询: {url}")
 
-        tags, leftover = resolve_unknown_names("星里恢复", fetch=recovered_fetch)
+        tags, leftover, ambiguous = resolve_unknown_names("星里恢复", fetch=recovered_fetch)
         check("hoshisato recovery" in tags, "同名查询可在网络恢复后成功")
         check(any(kind == "恢复" for kind, _ in recovery_calls), "网络恢复后确实重新发起请求")
-        check(leftover == "", "恢复查询命中后无残留")
+        check(leftover == "" and ambiguous is False, "恢复查询命中后无残留")
 
         def boom_fetch(url, timeout=8, data=None):
             raise TimeoutError("模拟外网超时")
 
         _LOOKUP_CACHE.clear()
-        tags, leftover = resolve_unknown_names("八重神子", fetch=boom_fetch)
-        check(tags == "" and leftover == "八重神子", "查询失败时降级不阻断")
+        tags, leftover, ambiguous = resolve_unknown_names("八重神子", fetch=boom_fetch)
+        check(
+            tags == "" and leftover == "八重神子" and ambiguous is False,
+            "查询失败时降级不阻断",
+        )
 
     asyncio.run(run())
 
@@ -449,6 +614,7 @@ def main():
     for func in (
         test_contains_chinese,
         test_lexicon,
+        test_mainland_name_matching,
         test_sanitize,
         test_to_tags,
     ):

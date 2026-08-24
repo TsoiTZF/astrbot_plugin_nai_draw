@@ -17,8 +17,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from difflib import SequenceMatcher
 
 from astrbot.api import logger
+from pypinyin import lazy_pinyin
 
 # 中文描述到 danbooru 标签的映射。
 # 键为可能出现的中文写法，值为对应标签，多个标签用逗号分隔。
@@ -108,6 +110,11 @@ LEXICON = {
     "薇尔莉特": "1girl, violet evergarden, violet evergarden (series)",
     "神里绫华": "1girl, kamisato ayaka (genshin impact), genshin impact",
     "神里綾華": "1girl, kamisato ayaka (genshin impact), genshin impact",
+    "黛拉可玛莉": "1girl, terakomari gandezblood, hikikomari kyuuketsuki no monmon",
+    "黛拉可玛丽": "1girl, terakomari gandezblood, hikikomari kyuuketsuki no monmon",
+    "可玛莉": "1girl, terakomari gandezblood, hikikomari kyuuketsuki no monmon",
+    "可瑪莉": "1girl, terakomari gandezblood, hikikomari kyuuketsuki no monmon",
+    "缇拉鞠": "1girl, terakomari gandezblood, hikikomari kyuuketsuki no monmon",
 
     # ---- 发长与发型 ----
     "拖地长发": "absurdly long hair",
@@ -511,15 +518,24 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.9 "
+    "astrbot_plugin_nai_draw/1.7.10 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
 BANGUMI_SEARCH = "https://api.bgm.tv/v0/search/characters"
 BANGUMI_CHARACTER = "https://api.bgm.tv/v0/characters"
 _LOOKUP_CACHE = {}
 _LOOKUP_CACHE_LIMIT = 256
+_LOOKUP_AMBIGUOUS = "__ambiguous__"
 _NAME_TOKEN_RE = re.compile(r"[一-鿿ぁ-んァ-ン]{2,12}")
 _LATIN_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 .'\-]{1,80}$")
+_CHINESE_NAME_RE = re.compile(r"[一-鿿]{2,40}")
+_BANGUMI_ALIAS_KEYS = {
+    "简体中文名", "中文名", "第二中文名", "别名", "昵称", "绰号",
+}
+_BANGUMI_LATIN_KEYS = {"英文名", "罗马字"}
+_BANGUMI_SEARCH_LIMIT = 20
+_BANGUMI_SCORE_THRESHOLD = 80
+_BANGUMI_SCORE_MARGIN = 4
 
 LLM_INSTRUCTION = (
     "你是 danbooru 标签转换器。把用户的中文画面描述转成英文 danbooru 标签。\n"
@@ -828,6 +844,7 @@ def _latin_tag(text):
 
 
 def _bangumi_aliases(detail):
+    """提取 Bangumi 中可用于身份匹配的角色名与中文别名。"""
     names = []
     if not isinstance(detail, dict):
         return names
@@ -836,26 +853,106 @@ def _bangumi_aliases(detail):
         if value:
             names.append(value)
     for key, value in _infobox_pairs(detail.get("infobox")):
-        if value:
-            names.append(value)
-    return names
+        if not value:
+            continue
+        if key not in _BANGUMI_ALIAS_KEYS and not _CHINESE_NAME_RE.search(value):
+            continue
+        parts = re.split(r"[/／|｜、,，;；\n]+", value)
+        names.extend(part.strip() for part in parts if part.strip())
+    return list(dict.fromkeys(names))
+
+
+def _normalize_chinese_name(text):
+    """只保留中文字符，用于大陆译名和别名比较。"""
+    return "".join(re.findall(r"[一-鿿]", str(text or "")))
+
+
+def _pinyin_tokens(text):
+    """返回无声调拼音音节；非中文内容不参与同音匹配。"""
+    normalized = _normalize_chinese_name(text)
+    if not normalized:
+        return ()
+    return tuple(lazy_pinyin(normalized, errors="ignore"))
+
+
+def _bangumi_query_variants(name):
+    """生成有限个召回词，完整名称优先，再逐步缩短尾部或首部。"""
+    token = _normalize_chinese_name(name)
+    if not token:
+        return []
+    variants = [token]
+    max_trim = min(2, max(0, len(token) - 2))
+    for trim in range(1, max_trim + 1):
+        for candidate in (token[:-trim], token[trim:]):
+            if len(candidate) >= 2 and candidate not in variants:
+                variants.append(candidate)
+    return variants
+
+
+def _bangumi_alias_score(name, aliases):
+    """按字符与拼音相似度评分，返回 0～100。"""
+    query = _normalize_chinese_name(name)
+    query_pinyin = _pinyin_tokens(query)
+    best = 0
+    for alias in aliases:
+        candidate = _normalize_chinese_name(alias)
+        if not candidate:
+            continue
+        if candidate == query:
+            best = max(best, 100)
+            continue
+        if len(query) >= 3 and (query in candidate or candidate in query):
+            shorter = min(len(query), len(candidate))
+            longer = max(len(query), len(candidate))
+            if shorter >= 3:
+                best = max(best, 88 + min(6, int(6 * shorter / longer)))
+        candidate_pinyin = _pinyin_tokens(candidate)
+        if not query_pinyin or not candidate_pinyin:
+            continue
+        if query_pinyin == candidate_pinyin:
+            best = max(best, 96)
+            continue
+        ratio = SequenceMatcher(None, query_pinyin, candidate_pinyin).ratio()
+        if len(query_pinyin) >= 3 and ratio >= 0.74:
+            best = max(best, int(58 + ratio * 32))
+    return min(100, best)
+
+
+def _bangumi_popularity(detail):
+    stat = detail.get("stat") if isinstance(detail, dict) else None
+    if not isinstance(stat, dict):
+        return 0
+    try:
+        comments = int(stat.get("comments") or 0)
+    except (TypeError, ValueError):
+        comments = 0
+    try:
+        collects = int(stat.get("collects") or 0)
+    except (TypeError, ValueError):
+        collects = 0
+    return comments * 2 + collects
+
+
+def _bangumi_latin_candidates(detail):
+    """按英文名、罗马字、拉丁主名称顺序返回 Danbooru 查询候选。"""
+    candidates = []
+    for key, value in _infobox_pairs(
+        detail.get("infobox") if isinstance(detail, dict) else None
+    ):
+        tag = _latin_tag(value)
+        if key in _BANGUMI_LATIN_KEYS and tag and tag not in candidates:
+            candidates.append(tag)
+        elif key == "别名" and tag and tag not in candidates:
+            candidates.append(tag)
+    name_tag = _latin_tag(detail.get("name") if isinstance(detail, dict) else "")
+    if name_tag and name_tag not in candidates:
+        candidates.append(name_tag)
+    return candidates
 
 
 def _bangumi_latin_tag(detail):
-    preferred_keys = {"罗马字", "英文名", "第二中文名", "别名", "日文名"}
-    latin = []
-    for key, value in _infobox_pairs(detail.get("infobox") if isinstance(detail, dict) else None):
-        tag = _latin_tag(value)
-        if not tag:
-            continue
-        latin.append((0 if key in preferred_keys else 1, -len(tag), tag))
-    name_tag = _latin_tag((detail or {}).get("name") if isinstance(detail, dict) else "")
-    if name_tag:
-        latin.append((2, -len(name_tag), name_tag))
-    if not latin:
-        return None
-    latin.sort()
-    return latin[0][2]
+    candidates = _bangumi_latin_candidates(detail)
+    return candidates[0] if candidates else None
 
 
 def _bangumi_person_tag(detail):
@@ -867,52 +964,98 @@ def _bangumi_person_tag(detail):
     return "1girl"
 
 
-def _lookup_bangumi(name, fetch):
-    """国内可访问的 Bangumi 角色搜索，用中文短名换拉丁角色标签。"""
-    payload = _call_fetch(
-        fetch,
-        f"{BANGUMI_SEARCH}?limit=5",
-        data={"keyword": name},
-    )
-    items = []
-    if isinstance(payload, dict):
-        items = payload.get("data") or []
-    elif isinstance(payload, list):
-        items = payload
-    if not isinstance(items, list):
+def _fetch_bangumi_detail(item, fetch):
+    if not isinstance(item, dict):
         return None
+    character_id = item.get("id")
+    if character_id in (None, ""):
+        return item
+    try:
+        detail = _call_fetch(fetch, f"{BANGUMI_CHARACTER}/{character_id}")
+    except Exception:
+        return item
+    return detail if isinstance(detail, dict) and detail else item
 
-    best = None
-    for item in items[:5]:
-        if not isinstance(item, dict):
-            continue
-        character_id = item.get("id")
-        detail = item
-        if character_id not in (None, ""):
-            try:
-                fetched = _call_fetch(fetch, f"{BANGUMI_CHARACTER}/{character_id}")
-                if isinstance(fetched, dict) and fetched:
-                    detail = fetched
-            except Exception:
-                detail = item
-        aliases = _bangumi_aliases(detail)
-        exact = name in aliases or name == str(detail.get("name_cn") or "").strip()
-        contained = any(name in alias for alias in aliases if alias)
-        latin = _bangumi_latin_tag(detail)
-        if not latin:
-            continue
-        if exact:
-            score = 2
-        elif contained:
-            score = 1
+
+def _search_bangumi_candidates(name, fetch):
+    """从大陆 Bangumi 搜索召回并评分，返回 (详情, 是否歧义)。"""
+    query_variants = _bangumi_query_variants(name)
+    candidates = {}
+    for query_index, query_text in enumerate(query_variants):
+        payload = _call_fetch(
+            fetch,
+            f"{BANGUMI_SEARCH}?limit={_BANGUMI_SEARCH_LIMIT}",
+            data={"keyword": query_text},
+        )
+        if isinstance(payload, dict):
+            items = payload.get("data") or []
+        elif isinstance(payload, list):
+            items = payload
         else:
+            items = []
+        if not isinstance(items, list):
             continue
-        if best is None or score > best[0]:
-            best = (score, latin, _bangumi_person_tag(detail))
-    if not best:
+        for rank, item in enumerate(items[:_BANGUMI_SEARCH_LIMIT]):
+            if not isinstance(item, dict):
+                continue
+            key = item.get("id")
+            if key in (None, ""):
+                key = (item.get("name"), rank, query_index)
+            previous = candidates.get(key)
+            search_order = query_index * _BANGUMI_SEARCH_LIMIT + rank
+            if previous is None or search_order < previous[0]:
+                candidates[key] = (search_order, item)
+
+        # 模糊召回首次得到候选后即可停止，后续更短查询只会扩大噪声。
+        if query_index > 0 and candidates:
+            break
+
+    return _score_bangumi_candidates(name, candidates, fetch)
+
+
+def _score_bangumi_candidates(name, candidates, fetch):
+    scored = []
+    for search_order, item in candidates.values():
+        detail = item
+        score = _bangumi_alias_score(name, _bangumi_aliases(detail))
+        if score <= 0 and not isinstance(item.get("infobox"), list):
+            detail = _fetch_bangumi_detail(item, fetch)
+            if detail:
+                score = _bangumi_alias_score(name, _bangumi_aliases(detail))
+        if not detail or score <= 0:
+            continue
+        scored.append(
+            (
+                score,
+                _bangumi_popularity(detail),
+                -search_order,
+                detail,
+            )
+        )
+    if not scored:
+        return None, False
+    scored.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
+    best = scored[0]
+    if best[0] < _BANGUMI_SCORE_THRESHOLD:
+        return None, False
+    if len(scored) > 1:
+        second = scored[1]
+        if best[0] - second[0] < _BANGUMI_SCORE_MARGIN:
+            return None, True
+    return best[3], False
+
+
+def _lookup_bangumi(name, fetch):
+    """使用大陆 Bangumi 的中文别名与拼音候选确认角色身份。"""
+    detail, ambiguous = _search_bangumi_candidates(name, fetch)
+    if ambiguous:
+        return _LOOKUP_AMBIGUOUS
+    if not detail:
         return None
-    _, latin, person = best
-    return f"{person}, {latin}"
+    latin = _bangumi_latin_tag(detail)
+    if not latin:
+        return None
+    return f"{_bangumi_person_tag(detail)}, {latin}"
 
 
 def _lookup_autocomplete(name, fetch):
@@ -995,8 +1138,93 @@ def _lookup_wiki(name, fetch):
     return scored[0][2]
 
 
+def _latin_query_text(text):
+    value = re.sub(r"[^a-z0-9]+", "_", str(text or "").lower()).strip("_")
+    return value
+
+
+def _lookup_danbooru_latin(latin_candidates, fetch):
+    """把 Bangumi 已确认角色的英文名/罗马字校准成正式 Danbooru 角色标签。"""
+    for latin in latin_candidates:
+        query_text = _latin_query_text(latin)
+        if not query_text:
+            continue
+        exact_query = urllib.parse.urlencode(
+            {"search[name]": query_text, "limit": 1}
+        )
+        payload = _call_fetch(fetch, f"{DANBOORU_TAGS}?{exact_query}")
+        if isinstance(payload, list) and payload:
+            item = payload[0]
+            try:
+                category = int(item.get("category"))
+                posts = int(item.get("post_count") or 0)
+            except (AttributeError, TypeError, ValueError):
+                category = -1
+                posts = 0
+            if category == 4 and posts > 0:
+                tag = _tag_from_title(item.get("name"))
+                if tag:
+                    return tag
+
+        autocomplete_query = urllib.parse.urlencode(
+            {
+                "search[query]": query_text,
+                "search[type]": "tag",
+                "limit": 10,
+            }
+        )
+        payload = _call_fetch(
+            fetch, f"{DANBOORU_AUTOCOMPLETE}?{autocomplete_query}"
+        )
+        if not isinstance(payload, list):
+            continue
+        best = None
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            try:
+                category = int(item.get("category"))
+                posts = int(item.get("post_count") or 0)
+            except (TypeError, ValueError):
+                continue
+            if category != 4:
+                continue
+            value = str(item.get("value") or item.get("label") or "").strip()
+            tag = _tag_from_title(value)
+            if not tag:
+                continue
+            normalized = _latin_query_text(value)
+            similarity = SequenceMatcher(None, query_text, normalized).ratio()
+            score = (1 if query_text == normalized else 0, similarity, posts)
+            if best is None or score > best[0]:
+                best = (score, tag)
+        if best and (best[0][0] or best[0][1] >= 0.86):
+            return best[1]
+    return None
+
+
+def _resolve_bangumi_character(name, fetch):
+    """返回 (标签, 是否歧义)，先确认中文身份再尽力校准 Danbooru。"""
+    detail, ambiguous = _search_bangumi_candidates(name, fetch)
+    if ambiguous:
+        return "", True
+    if not detail:
+        return "", False
+    person = _bangumi_person_tag(detail)
+    latin_candidates = _bangumi_latin_candidates(detail)
+    danbooru = None
+    try:
+        danbooru = _lookup_danbooru_latin(latin_candidates, fetch)
+    except Exception as exc:
+        logger.debug(f"[叶子的逼] Danbooru 拉丁标签校准失败，保留 Bangumi 名称: {exc}")
+    if danbooru:
+        return f"{person}, {danbooru}", False
+    latin = latin_candidates[0] if latin_candidates else None
+    return (f"{person}, {latin}" if latin else ""), False
+
+
 def lookup_name_sync(name, fetch=None):
-    """把中文角色/作品名查成 danbooru 标签，查不到返回空串。"""
+    """把大陆中文角色名查成 Danbooru 标签；歧义返回内部标记。"""
     token = str(name or "").strip()
     if not token:
         return ""
@@ -1005,12 +1233,26 @@ def lookup_name_sync(name, fetch=None):
         return cached
     fetch = fetch or _fetch_json
     had_error = False
-    lookups = (
-        ("Bangumi", _lookup_bangumi),
+    try:
+        tag, ambiguous = _resolve_bangumi_character(token, fetch)
+        if ambiguous:
+            _cache_set(token, _LOOKUP_AMBIGUOUS)
+            return _LOOKUP_AMBIGUOUS
+        if tag:
+            _cache_set(token, tag)
+            return tag
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        had_error = True
+        logger.debug(f"[叶子的逼] Bangumi 角色查询失败: {exc}")
+    except Exception as exc:
+        had_error = True
+        logger.debug(f"[叶子的逼] Bangumi 角色查询异常: {exc}")
+
+    # Bangumi 没有候选时才使用中文别名精确回退；不直接按模糊热度猜角色。
+    for source, lookup in (
         ("Danbooru Wiki", _lookup_wiki),
         ("Danbooru 自动补全", _lookup_autocomplete),
-    )
-    for source, lookup in lookups:
+    ):
         try:
             tag = lookup(token, fetch) or ""
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
@@ -1049,16 +1291,18 @@ def _pure_name_query(raw, leftover):
 
 
 def resolve_unknown_names(leftover, fetch=None, raw=""):
-    """把残留短中文查成角色/作品标签，返回 (标签串, 仍未识别的残留)。"""
+    """把残留短中文查成角色标签，返回 (标签串, 残留, 是否歧义)。"""
     leftover = str(leftover or "").strip()
     if not leftover:
-        return "", ""
+        return "", "", False
     found = []
     remaining = leftover
     pure_names = _pure_name_query(raw, leftover)
     names = pure_names or (_name_candidates(leftover) if not raw else [])
     for name in names[:1]:
         tag = lookup_name_sync(name, fetch=fetch)
+        if tag == _LOOKUP_AMBIGUOUS:
+            return "", leftover, True
         if not tag:
             continue
         found.append(tag)
@@ -1067,7 +1311,7 @@ def resolve_unknown_names(leftover, fetch=None, raw=""):
         else:
             remaining = remaining.replace(name, ",")
     leftover_cn = _strip_stopwords("".join(re.findall(r"[一-鿿]+", remaining)))
-    return ", ".join(_dedupe_tags(*found)), leftover_cn
+    return ", ".join(_dedupe_tags(*found)), leftover_cn, False
 
 
 async def to_tags(context, text, use_llm=True, fetch=None):
@@ -1085,16 +1329,20 @@ async def to_tags(context, text, use_llm=True, fetch=None):
 
     lexicon_tags, leftover = translate_by_lexicon(raw)
     danbooru_tags = ""
+    ambiguous_name = False
     if leftover and _pure_name_query(raw, leftover):
         try:
-            danbooru_tags, leftover = await asyncio.wait_for(
+            danbooru_tags, leftover, ambiguous_name = await asyncio.wait_for(
                 asyncio.to_thread(resolve_unknown_names, leftover, fetch, raw),
-                timeout=3,
+                timeout=8,
             )
         except Exception as exc:
             logger.debug(f"[叶子的逼] 角色查询跳过: {exc}")
 
     merged = ", ".join(_dedupe_tags(lexicon_tags, danbooru_tags))
+
+    if ambiguous_name:
+        return "", "角色名存在多个候选，请补充作品名或使用更完整的角色名"
 
     if use_llm and leftover:
         llm_tags = await translate_by_llm(context, raw)

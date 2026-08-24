@@ -2,3 +2,4 @@ requests
 aiohttp
 Pillow
 cryptography
+pypinyin==0.55.0

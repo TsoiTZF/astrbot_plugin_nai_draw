@@ -749,28 +749,20 @@ textarea#prompt {
   box-shadow: 0 0 0 1px var(--bevel-gold-active);
 }
 
-.artist-input-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.artist-input-frame {
-  flex: 1;
-  min-width: 0;
-}
-
 .artist-random-btn {
-  flex: 0 0 auto;
-  min-width: 92px;
-  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
   border: 1px solid var(--bevel-gold);
   border-radius: var(--radius-sm);
   background: var(--gold-subtle);
   color: var(--gold-bright);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   cursor: pointer;
   white-space: nowrap;
 }

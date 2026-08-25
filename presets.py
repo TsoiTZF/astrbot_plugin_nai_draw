@@ -26,6 +26,11 @@
 import random
 import re
 
+try:
+    from .random_artist_pool import RANDOM_ARTIST_COMBOS, RANDOM_ARTIST_SOURCE
+except ImportError:
+    from random_artist_pool import RANDOM_ARTIST_COMBOS, RANDOM_ARTIST_SOURCE
+
 # NAI4.5 质量词，与 NAI3/SD 体系不通用
 QUALITY = "amazing quality, very aesthetic, absurdres"
 NO_PRESET_KEY = "none"
@@ -437,23 +442,20 @@ def sanitize_artist_string(text, max_tags=MAX_CUSTOM_ARTISTS):
 
 
 def random_artist_combo():
-    """从已实测预设画师配方中抽取一组，供独立随机画师串使用。"""
-    combos = []
-    for key in PRESET_ORDER:
-        for item in PRESETS[key]["artist_variants"]:
-            tags, rejected = sanitize_artist_string(item)
-            if tags and rejected == 0:
-                combos.append(
-                    {
-                        "preset": key,
-                        "label": PRESETS[key]["label"],
-                        "artists": tags,
-                        "text": ", ".join(tags),
-                    }
-                )
-    if not combos:
-        raise ValueError("没有可用的实测画师串")
-    return random.choice(combos)
+    """从清洗后的独立画师串池中抽取一组。"""
+    if not RANDOM_ARTIST_COMBOS:
+        raise ValueError("没有可用的随机画师串")
+    title, entry_id, raw = random.choice(RANDOM_ARTIST_COMBOS)
+    tags, rejected = sanitize_artist_string(raw)
+    if not tags or rejected:
+        raise ValueError(f"随机画师串清洗失败：{entry_id}")
+    return {
+        "preset": entry_id,
+        "label": title,
+        "artists": tags,
+        "text": ", ".join(tags),
+        "source": dict(RANDOM_ARTIST_SOURCE),
+    }
 
 
 def resolve_size(text, fallback="832x1216"):

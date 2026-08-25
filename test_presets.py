@@ -127,9 +127,12 @@ def test_artist_sanitization():
     check(tags == ("artist:a", "artist:b"), "画师数量上限生效")
     check(rejected == 1, "超量画师计入忽略数量")
 
+    from random_artist_pool import RANDOM_ARTIST_COMBOS
+    check(len(RANDOM_ARTIST_COMBOS) >= 300, f"随机画师串池足够大（{len(RANDOM_ARTIST_COMBOS)}）")
     combo = random_artist_combo()
-    check(combo["preset"] in PRESET_ORDER, "随机画师串来自正式预设")
+    check(combo["preset"] and combo["label"], "随机画师串带有来源编号")
     check(combo["artists"] and combo["text"], "随机画师串包含清洗后的标签")
+    check(len(combo["artists"]) >= 3, "随机画师串至少 3 个画师")
     tags, rejected = sanitize_artist_string(combo["text"])
     check(tags == combo["artists"] and rejected == 0, "随机画师串可再次通过清洗")
 

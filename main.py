@@ -317,7 +317,7 @@ class NaiDrawPlugin(Star):
             if len(preview) > 180:
                 preview = preview[:177] + "..."
             return event.plain_result(
-                "[成功] 已从实测画师配方中抽取一组并设为个人画师串。\n"
+                "[成功] 已从清洗后的画师串池抽取一组并设为个人画师串。\n"
                 f"来源：{combo['label']} [{combo['preset']}]\n"
                 f"画师串：{preview}"
             )

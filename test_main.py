@@ -601,7 +601,7 @@ def test_artist_command():
         check("个人画师：1 个" in result[0][1], "进度反馈显示个人画师数量")
 
         randomized = asyncio.run(plugin.cmd_artists(user, "随机"))
-        check("已从实测画师配方中抽取一组" in randomized[1], "随机画师串指令成功")
+        check("已从清洗后的画师串池抽取一组" in randomized[1], "随机画师串指令成功")
         check(plugin._artist_tags("user-artist"), "随机画师串写入个人设置")
         check("来源：" in randomized[1] and "画师串：" in randomized[1], "随机画师串反馈来源和内容")
 

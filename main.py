@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.8.0
+"""AstrBot 叶子的逼插件 v1.8.1
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -35,6 +35,7 @@ from .presets import (
     build_prompt,
     preset_help,
     preset_number,
+    random_artist_combo,
     resolve_preset,
     resolve_size,
     sanitize_artist_string,
@@ -47,7 +48,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.8.0")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.8.1")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -224,6 +225,7 @@ class NaiDrawPlugin(Star):
             "\n选择预设：/nai 1"
             "\n选择并绘图：/nai 1 长发女孩"
             "\n个人画师：/nai画师 添加 artist:名称"
+            "\n随机画师串：/nai画师 随机"
             "\n随机完整场景：/nai随机 -风格 1 -尺寸 横图"
         )
         return event.plain_result(text)
@@ -292,7 +294,7 @@ class NaiDrawPlugin(Star):
         action = raw.lower()
         usage = (
             "用法：/nai画师 添加 <画师串> | 设置 <画师串> | "
-            "删除 <编号> | 状态 | 清空"
+            "随机 | 删除 <编号> | 状态 | 清空"
         )
 
         if action in {"", "状态", "查看", "status"}:
@@ -307,6 +309,18 @@ class NaiDrawPlugin(Star):
         if action in {"清空", "清除", "reset", "clear"}:
             self._user_artists.pop(sender_id, None)
             return event.plain_result("[成功] 已清空你的个人画师串。")
+
+        if action in {"随机", "random"}:
+            combo = random_artist_combo()
+            self._user_artists[sender_id] = combo["artists"]
+            preview = combo["text"]
+            if len(preview) > 180:
+                preview = preview[:177] + "..."
+            return event.plain_result(
+                "[成功] 已从实测画师配方中抽取一组并设为个人画师串。\n"
+                f"来源：{combo['label']} [{combo['preset']}]\n"
+                f"画师串：{preview}"
+            )
 
         head, separator, payload = raw.partition(" ")
         command = head.lower()
@@ -429,6 +443,7 @@ class NaiDrawPlugin(Star):
                 "查看预设：/nai预设\n"
                 "无预设：/nai 0 画面描述\n"
                 "个人画师：/nai画师 添加 artist:名称\n"
+                "随机画师串：/nai画师 随机\n"
                 "自动脸型：/nai脸型 关 | 开 | 状态 | 默认\n"
                 "隐写模式：/nai隐写 状态"
             )
@@ -620,6 +635,8 @@ class NaiDrawPlugin(Star):
         sender_id,
         reservation=None,
         warning="",
+        generation_params=None,
+        extra_negative="",
     ):
         """并发受限地生成并保存图片，聊天与 WebUI 共用此入口。"""
         sender_id = str(sender_id or "unknown")
@@ -636,10 +653,18 @@ class NaiDrawPlugin(Star):
             include_face=face_enabled,
             custom_artist=self._artist_string(sender_id),
         )
+        negative_extra = ", ".join(
+            part
+            for part in (
+                str(self.config.get("extra_negative", "") or "").strip(),
+                str(extra_negative or "").strip(),
+            )
+            if part
+        )
         negative = build_negative(
             preset_key,
             self._allow_nsfw(sender_id),
-            self.config.get("extra_negative", ""),
+            negative_extra,
             face_negative,
             description,
             include_face=face_enabled,
@@ -654,7 +679,11 @@ class NaiDrawPlugin(Star):
                 data = await loop.run_in_executor(
                     None,
                     lambda: self._api.generate(
-                        prompt, negative, size, retries=self._retries()
+                        prompt,
+                        negative,
+                        size,
+                        retries=self._retries(),
+                        generation_params=generation_params,
                     ),
                 )
             except NaiAPIError:
@@ -679,6 +708,7 @@ class NaiDrawPlugin(Star):
             "negative": negative,
             "variant_index": variant_index,
             "face_enabled": face_enabled,
+            "generation_params": dict(generation_params or {}),
         }
 
     async def _hide_into_cover(self, event, generated_path, sender_id, preset_key):

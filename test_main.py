@@ -252,6 +252,7 @@ def test_personal_preset_selection():
         preset_help = asyncio.run(plugin.cmd_presets(event))
         check("0 = 无预设" in preset_help[1], "预设清单显示 0 号无预设")
         check("/nai画师 添加" in preset_help[1], "预设清单显示个人画师入口")
+        check("/nai画师 随机" in preset_help[1], "预设清单显示随机画师串入口")
         check("1 = 冰蓝柔光（日系）" in preset_help[1], "预设清单显示数字与中文名")
         check("9 = 青雾胶片插画" in preset_help[1], "预设清单显示完整编号范围")
 
@@ -431,6 +432,7 @@ def test_face_variation_command():
         check("/nai脸型" in help_result[0][1], "绘图帮助显示自动脸型指令")
         check("/nai 0" in help_result[0][1], "绘图帮助显示无预设入口")
         check("/nai画师 添加" in help_result[0][1], "绘图帮助显示个人画师入口")
+        check("/nai画师 随机" in help_result[0][1], "绘图帮助显示随机画师串入口")
 
         status = asyncio.run(plugin.cmd_face_variation(user))
         check("开启" in status[1] and "管理面板默认" in status[1], "默认状态正确")
@@ -597,6 +599,11 @@ def test_artist_command():
         result = run_draw(plugin, user, "0 1girl")
         check("预设：0 = 无预设" in result[0][1], "进度反馈显示无预设模式")
         check("个人画师：1 个" in result[0][1], "进度反馈显示个人画师数量")
+
+        randomized = asyncio.run(plugin.cmd_artists(user, "随机"))
+        check("已从实测画师配方中抽取一组" in randomized[1], "随机画师串指令成功")
+        check(plugin._artist_tags("user-artist"), "随机画师串写入个人设置")
+        check("来源：" in randomized[1] and "画师串：" in randomized[1], "随机画师串反馈来源和内容")
 
         cleared = asyncio.run(plugin.cmd_artists(user, "清空"))
         check("已清空" in cleared[1] and not plugin._artist_tags("user-artist"), "清空画师串成功")

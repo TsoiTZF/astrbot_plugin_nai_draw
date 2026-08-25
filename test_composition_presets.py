@@ -4,9 +4,11 @@ import sys
 
 from composition_presets import (
     COMPOSITION_SCENES,
+    INSPIRATION_ENTRY_IDS,
     composition_scene,
     composition_scene_count,
     composition_scene_payload,
+    inspiration_scene_payload,
     validate_composition_scenes,
 )
 
@@ -39,6 +41,19 @@ def main():
     check(len(payload) == 64, "WebUI 载荷包含全部场景")
     check(all(item["title"] and item["prompt"] for item in payload), "WebUI 场景字段完整")
     check(len({item["entry_id"] for item in payload}) == 64, "WebUI 场景 ID 唯一")
+
+    inspiration = inspiration_scene_payload()
+    check(len(INSPIRATION_ENTRY_IDS) == 20, "精选灵感固定 20 条")
+    check(len(inspiration) == 20, "绘台灵感池返回 20 条")
+    check(
+        {item["entry_id"] for item in inspiration} == set(INSPIRATION_ENTRY_IDS),
+        "精选灵感全部来自完整法典",
+    )
+    check(all("2girls" not in item["prompt"] for item in inspiration), "精选灵感不含双人模板")
+    check(
+        all(0 <= item["index"] < 64 for item in inspiration),
+        "精选灵感索引仍指向完整法典",
+    )
 
     random_item = composition_scene()
     check(0 <= random_item["index"] < 64, "随机场景索引合法")

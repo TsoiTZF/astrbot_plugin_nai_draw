@@ -14,12 +14,22 @@ from pathlib import Path
 
 from astrbot.api import logger
 
-from .nai_api import NaiAPIError
-from .composition_presets import composition_scene, composition_scene_payload
+from .composition_presets import (
+    composition_scene,
+    composition_scene_payload,
+    inspiration_scene_payload,
+)
+from .nai_api import (
+    NOISE_SCHEDULES,
+    SAMPLERS,
+    NaiAPIError,
+    normalize_generation_params,
+)
 from .presets import (
     PRESET_ORDER,
     PRESETS,
     preset_number,
+    random_artist_combo,
     resolve_preset,
     resolve_size,
     sanitize_artist_string,
@@ -91,6 +101,7 @@ def register_webui(plugin):
 
     routes = (
         ("bootstrap", ui.bootstrap, ["GET"], "暗房启动数据"),
+        ("random-artist", ui.random_artist, ["POST"], "暗房随机画师串"),
         ("generate", ui.generate, ["POST"], "暗房出图"),
         ("gallery", ui.gallery, ["GET"], "暗房样张列表"),
         ("preview", ui.preview, ["GET"], "暗房图片预览"),
@@ -284,7 +295,23 @@ class NaiWebUI:
                     "cover_dir": str(plugin._cover_dir),
                     "presets": self._preset_payload(),
                     "composition_scenes": composition_scene_payload(),
+                    "inspiration_scenes": inspiration_scene_payload(),
                     "sizes": list(SIZE_CHOICES),
+                    "generation_params": {
+                        "samplers": list(SAMPLERS),
+                        "noise_schedules": list(NOISE_SCHEDULES),
+                        "defaults": {
+                            "steps": 28,
+                            "scale": 5.0,
+                            "cfg_rescale": 0.0,
+                            "seed": -1,
+                            "sampler": "k_euler_ancestral",
+                            "noise_schedule": "native",
+                            "smea": False,
+                            "sm_dyn": False,
+                            "quality_toggle": True,
+                        },
+                    },
                     "gallery": self._list_outputs(),
                     "covers": self._list_covers(),
                 }
@@ -292,6 +319,18 @@ class NaiWebUI:
         except Exception as exc:
             logger.error(f"[叶子的逼] 暗房启动失败: {exc}", exc_info=True)
             return self._fail("暗房启动失败，请查看插件日志。", 500)
+
+    async def random_artist(self, payload=None):
+        """从实测画师配方中抽取一组，供绘台个人画师输入框使用。"""
+        combo = random_artist_combo()
+        return self._respond(
+            {
+                "preset": combo["preset"],
+                "label": combo["label"],
+                "artists": list(combo["artists"]),
+                "text": combo["text"],
+            }
+        )
 
     async def gallery(self, payload=None):
         return self._respond({"gallery": self._list_outputs()})
@@ -361,6 +400,17 @@ class NaiWebUI:
         else:
             size_note = ""
 
+        try:
+            generation_params = normalize_generation_params(
+                data.get("generation_params")
+            )
+        except NaiAPIError as exc:
+            raise WebUIError(str(exc)) from exc
+
+        extra_negative = str(data.get("extra_negative") or "").strip()
+        if len(extra_negative) > 2000:
+            raise WebUIError("追加负面提示词不能超过 2000 个字符。")
+
         sender_id = self._sender_id()
         if "nsfw" in data:
             plugin._user_nsfw[sender_id] = bool(data.get("nsfw"))
@@ -408,6 +458,8 @@ class NaiWebUI:
             size,
             sender_id,
             warning=warning,
+            generation_params=generation_params,
+            extra_negative=extra_negative,
         )
         image_path = Path(produced["path"])
         stego = None
@@ -428,6 +480,7 @@ class NaiWebUI:
             "scene": scene,
             "prompt": produced["prompt"],
             "negative": produced["negative"],
+            "generation_params": generation_params,
             "image": self._encode_image(image_path),
             "stego": stego,
             "gallery": self._list_outputs(),

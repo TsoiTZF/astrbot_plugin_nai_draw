@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import requests
 
-from nai_api import NaiAPI, NaiAPIError
+from nai_api import NaiAPI, NaiAPIError, normalize_generation_params
 
 
 _failures = []
@@ -51,6 +51,52 @@ def test_base64_success():
     check(result == image, "正确解码 Base64 图片")
     check(post.call_args.kwargs["json"]["size"] == "832x832", "请求携带尺寸")
     check(post.call_args.kwargs["json"]["negative_prompt"] == "negative", "请求携带负面词")
+
+
+def test_generation_params():
+    print("NAI 详细参数：")
+    image = b"advanced-png"
+    response = FakeResponse(
+        body={"data": [{"b64_json": base64.b64encode(image).decode("ascii")}]}
+    )
+    params = {
+        "steps": "32",
+        "scale": 6.5,
+        "cfg_rescale": 0.25,
+        "seed": 123,
+        "sampler": "k_euler_ancestral",
+        "noise_schedule": "native",
+        "smea": True,
+        "sm_dyn": False,
+        "quality_toggle": True,
+    }
+    api = NaiAPI("http://example.test", "sk-test", "nai-test", retry_backoff=0)
+    with patch("nai_api.requests.post", return_value=response) as post:
+        result = api.generate("prompt", "negative", "832x832", generation_params=params)
+    check(result == image, "详细参数请求仍能返回图片")
+    sent = post.call_args.kwargs["json"]
+    check(sent["steps"] == 32 and sent["scale"] == 6.5, "请求携带步数和 CFG")
+    check(sent["seed"] == 123 and sent["sampler"] == "k_euler_ancestral", "请求携带种子和采样器")
+    check(sent["sm"] is True and sent["sm_dyn"] is False, "请求使用 NAI 的 SMEA 字段名")
+    check(sent["qualityToggle"] is True, "请求使用 NAI 的质量增强字段名")
+    check(
+        sent["extra_fields"]["steps"] == 32
+        and sent["extra_fields"]["negative_prompt"] == "negative",
+        "扩展参数同时写入 New API 的 extra_fields",
+    )
+    try:
+        normalize_generation_params({"steps": 0})
+    except NaiAPIError:
+        check(True, "步数下限校验")
+    else:
+        check(False, "步数下限校验")
+    for invalid, label in (({"steps": 2.5}, "步数拒绝小数"), ({"seed": 1.5}, "种子拒绝小数")):
+        try:
+            normalize_generation_params(invalid)
+        except NaiAPIError:
+            check(True, label)
+        else:
+            check(False, label)
 
 
 def test_url_success():
@@ -150,6 +196,7 @@ def main():
     print("=" * 56)
     for func in (
         test_base64_success,
+        test_generation_params,
         test_url_success,
         test_retry_and_timeout,
         test_invalid_responses,

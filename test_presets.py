@@ -18,6 +18,7 @@ from presets import (
     pick_variant,
     preset_help,
     preset_number,
+    random_artist_combo,
     resolve_preset,
     resolve_size,
     sanitize_artist_string,
@@ -125,6 +126,12 @@ def test_artist_sanitization():
     tags, rejected = sanitize_artist_string("artist:a, artist:b, artist:c", max_tags=2)
     check(tags == ("artist:a", "artist:b"), "画师数量上限生效")
     check(rejected == 1, "超量画师计入忽略数量")
+
+    combo = random_artist_combo()
+    check(combo["preset"] in PRESET_ORDER, "随机画师串来自正式预设")
+    check(combo["artists"] and combo["text"], "随机画师串包含清洗后的标签")
+    tags, rejected = sanitize_artist_string(combo["text"])
+    check(tags == combo["artists"] and rejected == 0, "随机画师串可再次通过清洗")
 
 
 def test_variation():
@@ -365,6 +372,7 @@ def test_preset_help():
     text = preset_help()
     check("0 = 无预设 [none]" in text, "显示 0 号无预设")
     check("/nai画师 添加" in text, "显示个人画师入口")
+    check("/nai画师 随机" in text, "显示随机画师串入口")
     check("1 = 冰蓝柔光（日系） [iceblue]" in text, "显示首个预设编号")
     check("9 = 青雾胶片插画 [filmgrain_illustration]" in text, "显示末尾预设")
     check(text.startswith("可用画风预设"), "首行为标题")

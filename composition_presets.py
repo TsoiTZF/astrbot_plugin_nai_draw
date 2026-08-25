@@ -358,12 +358,55 @@ def composition_scene(index=None):
     }
 
 
+# 绘台「示例灵感」精选池：只保留单人、画面干净、不易翻车的条目。
+# /nai随机 仍使用完整 64 条法典，不在这里缩减。
+INSPIRATION_ENTRY_IDS = (
+    "composition_style_0001",
+    "composition_style_0006",
+    "composition_style_0008",
+    "composition_style_0009",
+    "composition_style_0010",
+    "composition_style_0011",
+    "composition_style_0014",
+    "composition_style_0016",
+    "composition_style_0017",
+    "composition_style_0019",
+    "composition_style_0020",
+    "composition_style_0021",
+    "composition_style_0024",
+    "composition_style_0025",
+    "composition_style_0030",
+    "composition_style_0035",
+    "composition_style_0044",
+    "composition_style_0050",
+    "composition_style_0056",
+    "composition_style_0057",
+)
+
+
 def composition_scene_payload():
     """返回 WebUI 可直接使用的场景标题和提示词。"""
     return [
         {"index": index, "title": title, "prompt": prompt, "entry_id": entry_id}
         for index, (title, prompt, entry_id) in enumerate(COMPOSITION_SCENES)
     ]
+
+
+def inspiration_scene_payload():
+    """返回绘台示例灵感精选池，index 仍指向完整法典。"""
+    allowed = set(INSPIRATION_ENTRY_IDS)
+    items = []
+    for index, (title, prompt, entry_id) in enumerate(COMPOSITION_SCENES):
+        if entry_id in allowed:
+            items.append(
+                {
+                    "index": index,
+                    "title": title,
+                    "prompt": prompt,
+                    "entry_id": entry_id,
+                }
+            )
+    return items
 
 
 def validate_composition_scenes():

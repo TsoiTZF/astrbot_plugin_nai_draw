@@ -19,6 +19,90 @@ class NaiAPIError(Exception):
 # 上游偶发 502/503，属于服务端抖动，重试即可恢复
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
+SAMPLERS = (
+    "k_euler",
+    "k_euler_ancestral",
+    "k_dpmpp_2m",
+    "k_dpmpp_2s_ancestral",
+    "k_dpmpp_sde",
+    "ddim_v3",
+    "ddim",
+)
+NOISE_SCHEDULES = ("native", "karras", "exponential")
+
+
+def normalize_generation_params(params):
+    """校验 WebUI 传入的 NAI 扩展参数，空值不进入请求体。"""
+    if not isinstance(params, dict):
+        return {}
+
+    normalized = {}
+
+    def number(name, minimum, maximum, integer=False):
+        value = params.get(name)
+        if value is None or value == "":
+            return
+        try:
+            if isinstance(value, bool):
+                raise TypeError
+            numeric = float(value)
+            if integer and not numeric.is_integer():
+                raise ValueError
+            parsed = int(numeric) if integer else numeric
+        except (TypeError, ValueError):
+            kind = "整数" if integer else "数字"
+            raise NaiAPIError(f"参数 {name} 必须是{kind}")
+        if not math.isfinite(parsed) or parsed < minimum or parsed > maximum:
+            raise NaiAPIError(f"参数 {name} 超出范围（{minimum}~{maximum}）")
+        normalized[name] = parsed
+
+    number("steps", 1, 50, integer=True)
+    number("scale", 0, 30)
+    number("cfg_rescale", 0, 1)
+    seed = params.get("seed")
+    if seed not in (None, ""):
+        try:
+            if isinstance(seed, bool):
+                raise TypeError
+            numeric_seed = float(seed)
+            if not numeric_seed.is_integer():
+                raise ValueError
+            seed = int(numeric_seed)
+        except (TypeError, ValueError):
+            raise NaiAPIError("参数 seed 必须是整数")
+        if seed < -1 or seed > 4294967295:
+            raise NaiAPIError("参数 seed 超出范围（-1~4294967295）")
+        normalized["seed"] = seed
+
+    sampler = str(params.get("sampler") or "").strip()
+    if sampler:
+        if sampler not in SAMPLERS:
+            raise NaiAPIError(f"不支持的采样器：{sampler}")
+        normalized["sampler"] = sampler
+
+    noise_schedule = str(params.get("noise_schedule") or "").strip()
+    if noise_schedule:
+        if noise_schedule not in NOISE_SCHEDULES:
+            raise NaiAPIError(f"不支持的噪声调度：{noise_schedule}")
+        normalized["noise_schedule"] = noise_schedule
+
+    for name in ("smea", "sm_dyn", "quality_toggle"):
+        if name not in params or params[name] in (None, ""):
+            continue
+        value = params[name]
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "on", "yes"}:
+                value = True
+            elif lowered in {"false", "0", "off", "no"}:
+                value = False
+            else:
+                raise NaiAPIError(f"参数 {name} 必须是布尔值")
+        elif not isinstance(value, bool):
+            raise NaiAPIError(f"参数 {name} 必须是布尔值")
+        normalized[name] = value
+    return normalized
+
 
 class NaiAPI:
     def __init__(self, api_base, api_key, model, timeout=180, retry_backoff=1.0):
@@ -41,7 +125,7 @@ class NaiAPI:
     def configured(self):
         return bool(self._base and self._key)
 
-    def generate(self, prompt, negative_prompt, size, retries=3):
+    def generate(self, prompt, negative_prompt, size, retries=3, generation_params=None):
         """生成单张图片，返回 PNG 字节。
 
         对可重试状态码做退避重试；其余错误立即抛出，避免无谓等待。
@@ -58,6 +142,25 @@ class NaiAPI:
             "size": size,
             "response_format": "b64_json",
         }
+        params = normalize_generation_params(generation_params)
+        nai_extensions = {"negative_prompt": negative_prompt}
+        for name in ("steps", "scale", "cfg_rescale", "seed", "sampler", "noise_schedule"):
+            if name in params:
+                payload[name] = params[name]
+                nai_extensions[name] = params[name]
+        if "smea" in params:
+            payload["sm"] = params["smea"]
+            nai_extensions["sm"] = params["smea"]
+        if "sm_dyn" in params:
+            payload["sm_dyn"] = params["sm_dyn"]
+            nai_extensions["sm_dyn"] = params["sm_dyn"]
+        if "quality_toggle" in params:
+            payload["qualityToggle"] = params["quality_toggle"]
+            nai_extensions["qualityToggle"] = params["quality_toggle"]
+        if params:
+            # New API 的部分图像适配器只从 extra_fields 读取厂商扩展；
+            # 同时保留平铺字段，以兼容当前可直接接收 NAI 参数的端点。
+            payload["extra_fields"] = nai_extensions
         headers = {
             "Authorization": f"Bearer {self._key}",
             "Content-Type": "application/json",

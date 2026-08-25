@@ -92,7 +92,7 @@
                       <span>画面描述</span>
                     </label>
                     <div class="card-head-links">
-                      <button type="button" id="btn-random-prompt" class="action-ghost-btn" title="注入示例灵感">
+                      <button type="button" id="btn-random-prompt" class="action-ghost-btn" title="从精选场景池注入示例灵感">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mini-svg">
                           <rect x="2" y="2" width="20" height="20" rx="4"/>
                           <path d="M16 8h.01M8 8h.01M8 16h.01M16 16h.01M12 12h.01"/>
@@ -149,7 +149,7 @@
                     <label for="artists" class="card-head-title">
                       <span>画师标签叠加</span>
                     </label>
-                    <span class="card-head-hint">支持 NAI 权重括号</span>
+                    <button type="button" id="btn-random-artist" class="action-ghost-btn" title="从实测画师配方中抽取一组">随机画师串</button>
                   </div>
                   <div class="input-focus-frame">
                     <input
@@ -171,7 +171,78 @@
                   </div>
                 </div>
 
-                <!-- 5. 高级开关组 -->
+                <!-- 5. NAI 详细渲染参数 -->
+                <details class="ui-panel-card advanced-params-card" id="advanced-params">
+                  <summary class="advanced-summary-row">
+                    <span class="card-head-title">NAI 详细参数</span>
+                    <span class="badge-active-val" id="advanced-summary">28 步 · CFG 5</span>
+                  </summary>
+
+                  <div class="advanced-params-body">
+                    <div class="parameter-grid">
+                      <label class="parameter-field">
+                        <span class="parameter-label">步数 <output id="steps-value">28</output></span>
+                        <input id="steps" type="range" min="1" max="50" step="1" value="28" />
+                      </label>
+
+                      <label class="parameter-field">
+                        <span class="parameter-label">CFG Scale <output id="scale-value">5.0</output></span>
+                        <input id="scale" type="range" min="0" max="30" step="0.1" value="5" />
+                      </label>
+
+                      <label class="parameter-field">
+                        <span class="parameter-label">CFG Rescale <output id="cfg-rescale-value">0.00</output></span>
+                        <input id="cfg-rescale" type="range" min="0" max="1" step="0.01" value="0" />
+                      </label>
+
+                      <label class="parameter-field parameter-field--wide">
+                        <span class="parameter-label">Seed</span>
+                        <div class="seed-input-row">
+                          <input id="seed" type="number" class="text-input-field" min="-1" max="4294967295" step="1" value="-1" />
+                          <button type="button" class="seed-random-btn" id="btn-random-seed" title="生成随机种子" aria-label="生成随机种子">↻</button>
+                        </div>
+                        <span class="parameter-hint">-1 表示每次随机</span>
+                      </label>
+
+                      <label class="parameter-field">
+                        <span class="parameter-label">采样器</span>
+                        <select id="sampler" class="select-input-field"></select>
+                      </label>
+
+                      <label class="parameter-field">
+                        <span class="parameter-label">噪声调度</span>
+                        <select id="noise-schedule" class="select-input-field"></select>
+                      </label>
+                    </div>
+
+                    <div class="advanced-toggle-grid">
+                      <label class="compact-toggle">
+                        <input id="quality-toggle" type="checkbox" checked />
+                        <span>质量增强</span>
+                      </label>
+                      <label class="compact-toggle">
+                        <input id="smea" type="checkbox" />
+                        <span>SMEA</span>
+                      </label>
+                      <label class="compact-toggle">
+                        <input id="sm-dyn" type="checkbox" />
+                        <span>动态 SMEA</span>
+                      </label>
+                    </div>
+
+                    <label class="parameter-field parameter-field--wide">
+                      <span class="parameter-label">追加负面提示词</span>
+                      <textarea id="extra-negative" class="advanced-textarea" rows="3" maxlength="2000" placeholder="仅影响本次 WebUI 出图"></textarea>
+                    </label>
+
+                    <div class="advanced-footer-row">
+                      <span class="parameter-hint">参数直接传给 NAI 兼容网关</span>
+                      <button type="button" class="action-ghost-btn" id="btn-reset-params">恢复推荐值</button>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 6. 高级开关组 -->
                 <div class="ui-panel-card switches-cluster-card">
                   <label class="switch-control-row">
                     <div class="switch-meta-text">
@@ -226,7 +297,7 @@
                   </div>
                 </div>
 
-                <!-- 6. 核心渲染主按钮 -->
+                <!-- 7. 核心渲染主按钮 -->
                 <div class="submit-action-card">
                   <button id="draw-button" type="submit" class="btn-primary-render">
                     <span class="btn-shimmer-sheen"></span>
@@ -301,6 +372,10 @@
                       <div class="metric-capsule">
                         <span class="mc-label">脸型:</span>
                         <span class="mc-val" id="sheet-face">—</span>
+                      </div>
+                      <div class="metric-capsule">
+                        <span class="mc-label">参数:</span>
+                        <span class="mc-val font-mono" id="sheet-generation">—</span>
                       </div>
                     </div>
                   </div>

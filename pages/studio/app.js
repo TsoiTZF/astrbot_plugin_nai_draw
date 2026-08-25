@@ -50,7 +50,18 @@ function createFallbackBridge() {
           { key: "1216x832", label: "横图", hint: "1216×832" },
           { key: "1024x1024", label: "大图", hint: "1024×1024" },
         ],
+        generation_params: {
+          samplers: ["k_euler", "k_euler_ancestral", "k_dpmpp_2m", "k_dpmpp_2s_ancestral", "k_dpmpp_sde", "ddim_v3", "ddim"],
+          noise_schedules: ["native", "karras", "exponential"],
+          defaults: { steps: 28, scale: 5, cfg_rescale: 0, seed: -1, sampler: "k_euler_ancestral", noise_schedule: "native", smea: false, sm_dyn: false, quality_toggle: true },
+        },
         composition_scenes: FALLBACK_SAMPLES.map((prompt, index) => ({
+          index,
+          title: `兜底灵感 ${index + 1}`,
+          prompt,
+          entry_id: `fallback_${index + 1}`,
+        })),
+        inspiration_scenes: FALLBACK_SAMPLES.map((prompt, index) => ({
           index,
           title: `兜底灵感 ${index + 1}`,
           prompt,
@@ -77,7 +88,13 @@ const state = {
   stegoName: "",
   presets: [],
   sizes: [],
+  generationParams: {
+    samplers: [],
+    noiseSchedules: [],
+    defaults: {},
+  },
   compositionScenes: [],
+  inspirationScenes: [],
   selectedSceneIndex: null,
   gallery: [],
   covers: [],
@@ -100,6 +117,7 @@ const els = {
   prompt: document.getElementById("prompt"),
   btnClearPrompt: document.getElementById("btn-clear-prompt"),
   btnRandomPrompt: document.getElementById("btn-random-prompt"),
+  btnRandomArtist: document.getElementById("btn-random-artist"),
   quickTagsContainer: document.getElementById("quick-tags-container"),
   artists: document.getElementById("artists"),
   artistChips: document.querySelectorAll(".artist-chip-pill"),
@@ -117,6 +135,22 @@ const els = {
   sizeRow: document.getElementById("size-row"),
   presetSummary: document.getElementById("preset-summary"),
   sizeSummary: document.getElementById("size-summary"),
+  advancedSummary: document.getElementById("advanced-summary"),
+  steps: document.getElementById("steps"),
+  stepsValue: document.getElementById("steps-value"),
+  scale: document.getElementById("scale"),
+  scaleValue: document.getElementById("scale-value"),
+  cfgRescale: document.getElementById("cfg-rescale"),
+  cfgRescaleValue: document.getElementById("cfg-rescale-value"),
+  seed: document.getElementById("seed"),
+  btnRandomSeed: document.getElementById("btn-random-seed"),
+  sampler: document.getElementById("sampler"),
+  noiseSchedule: document.getElementById("noise-schedule"),
+  qualityToggle: document.getElementById("quality-toggle"),
+  smea: document.getElementById("smea"),
+  smDyn: document.getElementById("sm-dyn"),
+  extraNegative: document.getElementById("extra-negative"),
+  btnResetParams: document.getElementById("btn-reset-params"),
 
   // 画布与主结果区
   mainStage: document.getElementById("main-stage"),
@@ -133,6 +167,7 @@ const els = {
   sheetSize: document.getElementById("sheet-size"),
   sheetNsfw: document.getElementById("sheet-nsfw"),
   sheetFace: document.getElementById("sheet-face"),
+  sheetGeneration: document.getElementById("sheet-generation"),
   sheetPrompt: document.getElementById("sheet-prompt"),
   sheetNegative: document.getElementById("sheet-negative"),
   resultNote: document.getElementById("result-note"),
@@ -523,6 +558,13 @@ function displayResultOnCanvas(imageObj, meta) {
   els.sheetSize.textContent = meta.size || "—";
   els.sheetNsfw.textContent = meta.nsfw ? "开启" : "关闭";
   els.sheetFace.textContent = meta.face_variation ? "启用" : "禁用";
+  const generation = meta.generation_params || {};
+  const generationSummary = [
+    generation.steps ? `${generation.steps}步` : "默认步数",
+    generation.scale !== undefined ? `CFG ${generation.scale}` : "默认CFG",
+    generation.seed !== undefined && generation.seed !== -1 ? `种子 ${generation.seed}` : "随机种子",
+  ].join(" · ");
+  if (els.sheetGeneration) els.sheetGeneration.textContent = generationSummary;
   els.sheetPrompt.textContent = meta.prompt || "—";
   els.sheetNegative.textContent = meta.negative || "—";
 
@@ -535,6 +577,72 @@ function displayResultOnCanvas(imageObj, meta) {
 
   els.downloadResult.disabled = !state.currentName;
   els.downloadStego.hidden = !state.stegoName;
+}
+
+function applyGenerationDefaults(defaults) {
+  const values = defaults || {};
+  if (els.steps) els.steps.value = values.steps ?? 28;
+  if (els.scale) els.scale.value = values.scale ?? 5;
+  if (els.cfgRescale) els.cfgRescale.value = values.cfg_rescale ?? 0;
+  if (els.seed) els.seed.value = values.seed ?? -1;
+  if (els.sampler) els.sampler.value = values.sampler || "k_euler_ancestral";
+  if (els.noiseSchedule) els.noiseSchedule.value = values.noise_schedule || "native";
+  if (els.smea) els.smea.checked = Boolean(values.smea);
+  if (els.smDyn) els.smDyn.checked = Boolean(values.sm_dyn);
+  if (els.qualityToggle) els.qualityToggle.checked = values.quality_toggle !== false;
+  if (els.extraNegative) els.extraNegative.value = "";
+  updateGenerationLabels();
+}
+
+function updateGenerationLabels() {
+  if (els.stepsValue) els.stepsValue.textContent = String(els.steps?.value || 28);
+  if (els.scaleValue) els.scaleValue.textContent = Number(els.scale?.value || 5).toFixed(1);
+  if (els.cfgRescaleValue) els.cfgRescaleValue.textContent = Number(els.cfgRescale?.value || 0).toFixed(2);
+  if (els.advancedSummary) {
+    els.advancedSummary.textContent = `${els.steps?.value || 28} 步 · CFG ${Number(els.scale?.value || 5).toFixed(1)}`;
+  }
+}
+
+function readGenerationParams() {
+  return {
+    steps: Number(els.steps?.value || 28),
+    scale: Number(els.scale?.value || 5),
+    cfg_rescale: Number(els.cfgRescale?.value || 0),
+    seed: Number(els.seed?.value || -1),
+    sampler: els.sampler?.value || "k_euler_ancestral",
+    noise_schedule: els.noiseSchedule?.value || "native",
+    smea: Boolean(els.smea?.checked),
+    sm_dyn: Boolean(els.smDyn?.checked),
+    quality_toggle: Boolean(els.qualityToggle?.checked),
+  };
+}
+
+function renderGenerationParams(data) {
+  const params = data || {};
+  state.generationParams = {
+    samplers: params.samplers || [],
+    noiseSchedules: params.noise_schedules || [],
+    defaults: params.defaults || {},
+  };
+  if (els.sampler) {
+    els.sampler.replaceChildren();
+    for (const value of state.generationParams.samplers) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      els.sampler.appendChild(option);
+    }
+  }
+  if (els.noiseSchedule) {
+    els.noiseSchedule.replaceChildren();
+    for (const value of state.generationParams.noiseSchedules) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      els.noiseSchedule.appendChild(option);
+    }
+  }
+  applyGenerationDefaults(state.generationParams.defaults);
 }
 
 // 初始化引导数据
@@ -551,7 +659,9 @@ async function bootstrap() {
     state.size = data.default_size || "832x1216";
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
+    renderGenerationParams(data.generation_params);
     state.compositionScenes = data.composition_scenes || [];
+    state.inspirationScenes = data.inspiration_scenes || [];
 
     els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
     els.statusDot.className = `status-indicator-dot ${state.configured ? "ready" : "error"}`;
@@ -587,18 +697,34 @@ function setupEventListeners() {
     els.prompt.focus();
   });
 
-  // 随机法典完整场景
+  // 随机精选示例灵感；提交时仍按完整法典索引走显式随机模式。
   if (els.btnRandomPrompt) {
     els.btnRandomPrompt.addEventListener("click", () => {
-      const samples = state.compositionScenes.length
-        ? state.compositionScenes.map((item) => item.prompt)
-        : FALLBACK_SAMPLES;
-      const idx = Math.floor(Math.random() * samples.length);
-      els.prompt.value = samples[idx];
-      state.selectedSceneIndex = state.compositionScenes.length ? idx : null;
+      const samples = state.inspirationScenes.length
+        ? state.inspirationScenes
+        : (state.compositionScenes.length ? state.compositionScenes : FALLBACK_SAMPLES.map((prompt, index) => ({
+            index,
+            title: `兜底灵感 ${index + 1}`,
+            prompt,
+          })));
+      const selected = samples[Math.floor(Math.random() * samples.length)];
+      els.prompt.value = selected.prompt;
+      state.selectedSceneIndex = Number.isInteger(selected.index) ? selected.index : null;
       els.prompt.focus();
-      const selected = state.compositionScenes[idx];
-      showToast(selected ? `已抽取法典场景：${selected.title}` : "已注入兜底灵感画面！");
+      showToast(selected.title ? `已抽取精选灵感：${selected.title}` : "已注入兜底灵感画面！");
+    });
+  }
+
+  if (els.btnRandomArtist) {
+    els.btnRandomArtist.addEventListener("click", async () => {
+      try {
+        const data = await apiPost("random-artist", {});
+        els.artists.value = data.text || "";
+        els.artists.focus();
+        showToast(data.label ? `已抽取实测画师串：${data.label}` : "已注入随机画师串");
+      } catch (error) {
+        showToast(error.message || "随机画师串失败", "error");
+      }
     });
   }
 
@@ -727,6 +853,8 @@ function setupEventListeners() {
         artists: els.artists.value.trim(),
         nsfw: els.nsfw.checked,
         face_variation: els.face.checked,
+        generation_params: readGenerationParams(),
+        extra_negative: els.extraNegative?.value.trim() || "",
         stego: els.stego.checked,
         stego_password: els.stegoPassword.value.trim(),
       };
@@ -752,6 +880,17 @@ function setupEventListeners() {
       setBusy(false);
       els.formHint.textContent = "中文将由智能翻译引擎自动转为官方高质量英文标签";
     }
+  });
+
+  [els.steps, els.scale, els.cfgRescale].forEach((input) => {
+    input?.addEventListener("input", updateGenerationLabels);
+  });
+  els.btnRandomSeed?.addEventListener("click", () => {
+    els.seed.value = String(Math.floor(Math.random() * 4294967295));
+  });
+  els.btnResetParams?.addEventListener("click", () => {
+    applyGenerationDefaults(state.generationParams.defaults);
+    showToast("已恢复推荐参数");
   });
 
   // 下载成图

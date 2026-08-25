@@ -436,6 +436,26 @@ def sanitize_artist_string(text, max_tags=MAX_CUSTOM_ARTISTS):
     return tuple(accepted), rejected
 
 
+def random_artist_combo():
+    """从已实测预设画师配方中抽取一组，供独立随机画师串使用。"""
+    combos = []
+    for key in PRESET_ORDER:
+        for item in PRESETS[key]["artist_variants"]:
+            tags, rejected = sanitize_artist_string(item)
+            if tags and rejected == 0:
+                combos.append(
+                    {
+                        "preset": key,
+                        "label": PRESETS[key]["label"],
+                        "artists": tags,
+                        "text": ", ".join(tags),
+                    }
+                )
+    if not combos:
+        raise ValueError("没有可用的实测画师串")
+    return random.choice(combos)
+
+
 def resolve_size(text, fallback="832x1216"):
     """解析尺寸文本，支持中文别名与 宽x高 写法。
 
@@ -657,6 +677,7 @@ def preset_help():
     lines.append("只选择预设：/nai 1")
     lines.append("选择并绘图：/nai 1 长发女孩")
     lines.append("个人画师：/nai画师 添加 artist:名称")
+    lines.append("随机画师串：/nai画师 随机")
     lines.append("随机完整场景：/nai随机 -风格 1 -尺寸 横图（64 条构图法典）")
     lines.append("尺寸：竖图 / 方图 / 横图 / 大图，或直接写 832x1216")
     lines.append("每次出图轮换法典画师、正面画风与五官；/nai随机 才会注入完整场景。")

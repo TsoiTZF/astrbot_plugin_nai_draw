@@ -159,6 +159,16 @@ def test_bootstrap_and_gallery():
             "启动数据包含 64 条法典随机场景",
         )
         check(
+            len(data["inspiration_scenes"]) == 20,
+            "启动数据包含 20 条精选示例灵感",
+        )
+        check(
+            {item["entry_id"] for item in data["inspiration_scenes"]}.issubset(
+                {item["entry_id"] for item in data["composition_scenes"]}
+            ),
+            "精选灵感全部来自完整场景池",
+        )
+        check(
             data["composition_scenes"][0]["entry_id"] == "composition_style_0001",
             "随机场景来源 ID 可追溯",
         )
@@ -171,6 +181,12 @@ def test_bootstrap_and_gallery():
         )
         check(data["gallery"][0]["preset"] == "cinematic", "样张墙解析预设键")
         check(data["covers"][0]["name"] == "cover.png", "载体柜列出已有图片")
+        check(data["generation_params"]["defaults"]["steps"] == 28, "启动数据包含推荐步数")
+        check("k_euler_ancestral" in data["generation_params"]["samplers"], "启动数据包含 NAI 采样器")
+
+        combo = asyncio.run(plugin._webui.random_artist())
+        check(combo["preset"] and combo["text"], "随机画师串接口返回实测配方")
+        check(combo["artists"] and ", ".join(combo["artists"]) == combo["text"], "随机画师串文本与标签一致")
 
         empty = configured_plugin(temp_dir, extra_unconfigured=True)
         empty._api._base = ""
@@ -197,6 +213,18 @@ def test_generate_success_and_validation():
                         "artists": "wlop",
                         "nsfw": True,
                         "face_variation": False,
+                        "generation_params": {
+                            "steps": 32,
+                            "scale": 6.5,
+                            "cfg_rescale": 0.2,
+                            "seed": 123456,
+                            "sampler": "k_euler_ancestral",
+                            "noise_schedule": "native",
+                            "smea": True,
+                            "sm_dyn": False,
+                            "quality_toggle": True,
+                        },
+                        "extra_negative": "crowd, duplicate",
                     }
                 )
             )
@@ -212,6 +240,9 @@ def test_generate_success_and_validation():
         check(result["nsfw"] is True, "页面 NSFW 开关写入个人状态")
         check(result["face_variation"] is False, "页面自动脸型开关写入个人状态")
         check(result["artists"] == ["artist:wlop"], "裸画师名补前缀")
+        check(result["generation_params"]["steps"] == 32, "页面步数进入生成协议")
+        check(result["generation_params"]["seed"] == 123456, "页面种子进入生成协议")
+        check("crowd, duplicate" in result["negative"], "页面追加负面词进入最终负面标签")
         check(result["image"]["data"], "返回 Base64 样张")
         check((plugin._out_dir / result["name"]).is_file(), "样张落到输出目录")
 
@@ -242,6 +273,13 @@ def test_generate_success_and_validation():
             plugin._webui.generate({"prompt": "1girl", "preset": "not-a-preset"})
         )
         check(unknown["status"] == "error" and "未知预设" in unknown["message"], "未知预设被拒绝")
+
+        bad_steps = asyncio.run(
+            plugin._webui.generate(
+                {"prompt": "1girl", "generation_params": {"steps": 99}}
+            )
+        )
+        check(bad_steps["status"] == "error" and "steps" in bad_steps["message"], "非法步数被后端拒绝")
 
         async def no_tags(*args, **kwargs):
             return "", "未能识别中文描述，请改用英文标签"
@@ -349,6 +387,8 @@ def test_page_files():
     check('<script src="./app.js"></script>' in html, "绘台脚本用经典 script 加载")
     check("AstrBotPluginPage" in js, "脚本走官方 bridge")
     check('apiPost("generate"' in js, "出图走 generate 接口")
+    check('id="advanced-params"' in html and "generation_params" in js, "页面提供并提交 NAI 详细参数")
+    check("advanced-params-card" in css and "parameter-grid" in css, "详细参数面板具备布局样式")
     check('[data-theme="dark"]' in css or '[data-theme="light"]' in css, "样式支持 Dashboard 主题")
     check("绘台" in html, "页面标题为绘台")
     check("composer" in html and "workspace" in html, "左侧出图、右侧成图")
@@ -358,6 +398,8 @@ def test_page_files():
     check(".artist-chip-pill" in js and "artist-chip-pill" in html, "画师芯片选择器对齐")
     check(".inspire-tag-pill" in js and "inspire-tag-pill" in html, "灵感标签选择器对齐")
     check("compositionScenes" in js and "composition_scenes" in js, "绘台使用服务端法典场景池")
+    check("inspirationScenes" in js and "inspiration_scenes" in js, "绘台示例灵感使用精选池")
+    check('id="btn-random-artist"' in html and "random-artist" in js, "绘台提供随机画师串按钮")
     check("selectedSceneIndex" in js and "random_scene" in js, "绘台随机按钮提交显式随机模式")
     check("status-indicator-dot" in js and "status-indicator-dot" in html, "状态点选择器对齐")
     check("studio-toast-capsule" in js and "studio-toast-capsule" in html, "Toast 类名对齐")

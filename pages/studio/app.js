@@ -3,8 +3,8 @@
  * 原生现代 ESM 架构，零外部依赖，极速毫秒级响应
  */
 
-// 示例灵感画面库
-const SAMPLES = [
+// 随机场景由服务端 composition_style 法典提供；仅离线预览时使用兜底。
+const FALLBACK_SAMPLES = [
   "古风黑金汉服，华美刺绣，绝美少女，手持折扇，回眸微光，精致五官，唯美仙侠",
   "雨夜霓虹街头，长发白发少女，黑色机能风风衣，湿润发丝，侧光特写，电影级光影",
   "赛博朋克机能少女，机械义肢，荧光眼眸，发光线缆，虚幻引擎5渲染，光线追踪",
@@ -28,20 +28,21 @@ function createFallbackBridge() {
       return {
         configured: true,
         model: "nai-diffusion-4-5-full",
-        default_preset: "laowuyang",
+        default_preset: "iceblue",
         default_size: "832x1216",
         allow_nsfw: false,
         enable_face_variation: true,
         presets: [
           { number: 0, key: "none", label: "无预设", faces: 0 },
-          { number: 1, key: "laowuyang", label: "老五样（通用美脸）", faces: 16 },
-          { number: 2, key: "hiten", label: "hiten 柔和日系", faces: 16 },
-          { number: 3, key: "pop", label: "波普撞色", faces: 16 },
-          { number: 4, key: "ghostblade", label: "鬼刀厚涂", faces: 12 },
-          { number: 5, key: "mature", label: "成熟妩媚", faces: 16 },
-          { number: 6, key: "watercolor", label: "水彩透明", faces: 12 },
-          { number: 7, key: "retro", label: "复古赛璐璐", faces: 12 },
-          { number: 8, key: "oil", label: "厚涂油画", faces: 12 },
+          { number: 1, key: "iceblue", label: "冰蓝柔光（日系）", faces: 12 },
+          { number: 2, key: "cinematic", label: "冷调电影厚涂", faces: 36 },
+          { number: 3, key: "neon_flat", label: "霓虹平涂", faces: 36 },
+          { number: 4, key: "glossy_mature", label: "高光成熟人物", faces: 36 },
+          { number: 5, key: "dark_portrait", label: "暗夜轻熟肖像", faces: 48 },
+          { number: 6, key: "golden_backlight", label: "暖金逆光", faces: 12 },
+          { number: 7, key: "dreamy_floral", label: "暮光花境", faces: 12 },
+          { number: 8, key: "pastel_chibi", label: "粉彩无描边 Q版", faces: 12 },
+          { number: 9, key: "filmgrain_illustration", label: "青雾胶片插画", faces: 12 },
         ],
         sizes: [
           { key: "832x1216", label: "竖图", hint: "832×1216" },
@@ -49,6 +50,12 @@ function createFallbackBridge() {
           { key: "1216x832", label: "横图", hint: "1216×832" },
           { key: "1024x1024", label: "大图", hint: "1024×1024" },
         ],
+        composition_scenes: FALLBACK_SAMPLES.map((prompt, index) => ({
+          index,
+          title: `兜底灵感 ${index + 1}`,
+          prompt,
+          entry_id: `fallback_${index + 1}`,
+        })),
         gallery: [],
         covers: [],
       };
@@ -64,12 +71,14 @@ const bridge = window.AstrBotPluginPage || createFallbackBridge();
 // 全局响应式状态
 const state = {
   configured: false,
-  preset: "laowuyang",
+  preset: "iceblue",
   size: "832x1216",
   currentName: "",
   stegoName: "",
   presets: [],
   sizes: [],
+  compositionScenes: [],
+  selectedSceneIndex: null,
   gallery: [],
   covers: [],
   thumbs: new Map(),
@@ -538,10 +547,11 @@ async function bootstrap() {
 
     const data = await apiGet("bootstrap");
     state.configured = Boolean(data.configured);
-    state.preset = data.default_preset || "laowuyang";
+    state.preset = data.default_preset || "iceblue";
     state.size = data.default_size || "832x1216";
     state.presets = data.presets || [];
     state.sizes = data.sizes || [];
+    state.compositionScenes = data.composition_scenes || [];
 
     els.apiStatus.textContent = state.configured ? "SYSTEM READY" : "NO API KEY";
     els.statusDot.className = `status-indicator-dot ${state.configured ? "ready" : "error"}`;
@@ -573,16 +583,22 @@ function setupEventListeners() {
   // 清空描述
   els.btnClearPrompt.addEventListener("click", () => {
     els.prompt.value = "";
+    state.selectedSceneIndex = null;
     els.prompt.focus();
   });
 
-  // 随机示例
+  // 随机法典完整场景
   if (els.btnRandomPrompt) {
     els.btnRandomPrompt.addEventListener("click", () => {
-      const idx = Math.floor(Math.random() * SAMPLES.length);
-      els.prompt.value = SAMPLES[idx];
+      const samples = state.compositionScenes.length
+        ? state.compositionScenes.map((item) => item.prompt)
+        : FALLBACK_SAMPLES;
+      const idx = Math.floor(Math.random() * samples.length);
+      els.prompt.value = samples[idx];
+      state.selectedSceneIndex = state.compositionScenes.length ? idx : null;
       els.prompt.focus();
-      showToast("已注入精美灵感画面！");
+      const selected = state.compositionScenes[idx];
+      showToast(selected ? `已抽取法典场景：${selected.title}` : "已注入兜底灵感画面！");
     });
   }
 
@@ -600,6 +616,7 @@ function setupEventListeners() {
         els.prompt.value = tagContent;
       }
       els.prompt.focus();
+      state.selectedSceneIndex = null;
       showToast(`已追加灵感：${tag.textContent.trim()}`);
     });
   }
@@ -623,6 +640,10 @@ function setupEventListeners() {
   });
 
   // 快捷出图：Ctrl + Enter / Cmd + Enter
+  els.prompt.addEventListener("input", () => {
+    state.selectedSceneIndex = null;
+  });
+
   els.prompt.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
@@ -699,6 +720,8 @@ function setupEventListeners() {
     try {
       const payload = {
         prompt: promptVal,
+        random_scene: state.selectedSceneIndex !== null,
+        scene_index: state.selectedSceneIndex,
         preset: state.preset,
         size: state.size,
         artists: els.artists.value.trim(),
@@ -715,6 +738,7 @@ function setupEventListeners() {
       state.currentName = result.name || "";
       state.stegoName = result.stego?.ok ? result.stego.name : "";
       displayResultOnCanvas(result.image, result);
+      state.selectedSceneIndex = null;
       if (result.name) {
         state.thumbs.set(result.name, dataUrl(result.image));
       }

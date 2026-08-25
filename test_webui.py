@@ -150,13 +150,26 @@ def test_bootstrap_and_gallery():
     print("启动数据与样张墙：")
     with tempfile.TemporaryDirectory() as temp_dir:
         plugin = configured_plugin(temp_dir)
-        Image.new("RGB", (16, 16), (9, 8, 7)).save(plugin._out_dir / "nai_hiten_1.png")
+        Image.new("RGB", (16, 16), (9, 8, 7)).save(plugin._out_dir / "nai_cinematic_1.png")
         Image.new("RGB", (16, 16), (1, 2, 3)).save(plugin._cover_dir / "cover.png")
         data = asyncio.run(plugin._webui.bootstrap())
         check(data["configured"] is True, "已配置时启动数据标记接通")
+        check(
+            len(data["composition_scenes"]) == 64,
+            "启动数据包含 64 条法典随机场景",
+        )
+        check(
+            data["composition_scenes"][0]["entry_id"] == "composition_style_0001",
+            "随机场景来源 ID 可追溯",
+        )
         check(data["presets"][0]["key"] == "none", "预设清单含 0 号无预设")
-        check(len(data["presets"]) == 9, "预设清单覆盖 0～8")
-        check(data["gallery"][0]["preset"] == "hiten", "样张墙解析预设键")
+        check(len(data["presets"]) == 10, "预设清单覆盖 0～9")
+        check(data["presets"][-1]["key"] == "filmgrain_illustration", "预设清单末尾为青雾胶片插画")
+        check(
+            data["presets"][1]["source"]["codex"] == "artist_nai45_strings",
+            "画风预设返回法典来源",
+        )
+        check(data["gallery"][0]["preset"] == "cinematic", "样张墙解析预设键")
         check(data["covers"][0]["name"] == "cover.png", "载体柜列出已有图片")
 
         empty = configured_plugin(temp_dir, extra_unconfigured=True)
@@ -187,13 +200,40 @@ def test_generate_success_and_validation():
                     }
                 )
             )
-        check(result["preset"] == "hiten", "数字预设 2 解析为 hiten")
+        check(result["preset"] == "cinematic", "数字预设 2 解析为 cinematic")
+        with patch("astrbot_plugin_nai_draw.webui.to_tags", new=fake_tags):
+            last_preset = asyncio.run(
+                plugin._webui.generate(
+                    {"prompt": "青雾少女", "preset": "9", "size": "方图"}
+                )
+            )
+        check(last_preset["preset"] == "filmgrain_illustration", "绘台末尾编号解析为青雾胶片插画")
         check(result["size"] == "832x832", "中文尺寸解析为方图")
         check(result["nsfw"] is True, "页面 NSFW 开关写入个人状态")
         check(result["face_variation"] is False, "页面自动脸型开关写入个人状态")
         check(result["artists"] == ["artist:wlop"], "裸画师名补前缀")
         check(result["image"]["data"], "返回 Base64 样张")
         check((plugin._out_dir / result["name"]).is_file(), "样张落到输出目录")
+
+        with patch("astrbot_plugin_nai_draw.webui.composition_scene", return_value={
+            "index": 0,
+            "title": "运河小船上的静谧时刻",
+            "prompt": "sitting in a small wooden boat, 1.2::medium shot::",
+            "entry_id": "composition_style_0001",
+        }), patch("astrbot_plugin_nai_draw.webui.to_tags", new=fake_tags):
+            random_result = asyncio.run(
+                plugin._webui.generate(
+                    {
+                        "prompt": "页面中展示的场景文本",
+                        "random_scene": True,
+                        "scene_index": 0,
+                        "preset": "1",
+                        "size": "横图",
+                    }
+                )
+            )
+        check(random_result["scene"]["entry_id"] == "composition_style_0001", "页面随机模式返回场景来源")
+        check(random_result["image"]["data"], "页面随机模式可直接出图")
 
         missing = asyncio.run(plugin._webui.generate({"prompt": ""}))
         check(missing["status"] == "error" and "画面描述" in missing["message"], "空描述被拒绝")
@@ -317,6 +357,8 @@ def test_page_files():
     check(".view-mode-panel" in js and "view-mode-panel" in html, "模式面板选择器对齐")
     check(".artist-chip-pill" in js and "artist-chip-pill" in html, "画师芯片选择器对齐")
     check(".inspire-tag-pill" in js and "inspire-tag-pill" in html, "灵感标签选择器对齐")
+    check("compositionScenes" in js and "composition_scenes" in js, "绘台使用服务端法典场景池")
+    check("selectedSceneIndex" in js and "random_scene" in js, "绘台随机按钮提交显式随机模式")
     check("status-indicator-dot" in js and "status-indicator-dot" in html, "状态点选择器对齐")
     check("studio-toast-capsule" in js and "studio-toast-capsule" in html, "Toast 类名对齐")
     check("[hidden]" in css, "hidden 属性不被 flex 盖掉")

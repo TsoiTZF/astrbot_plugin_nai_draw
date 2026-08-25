@@ -38,17 +38,23 @@ def check(condition, label):
 
 def test_resolve_preset():
     print("预设名解析：")
-    check(resolve_preset("1") == "laowuyang", "编号 1 命中首个预设")
-    check(resolve_preset(" 3 ") == "pop", "编号 3 忽略首尾空格")
-    check(resolve_preset(str(len(PRESET_ORDER))) == "oil", "末尾编号命中")
+    check(resolve_preset("1") == "iceblue", "编号 1 命中首个预设")
+    check(resolve_preset(" 3 ") == "neon_flat", "编号 3 忽略首尾空格")
+    check(resolve_preset(str(len(PRESET_ORDER))) == "filmgrain_illustration", "末尾编号命中")
     check(resolve_preset("0") == NO_PRESET_KEY, "编号 0 选择无预设")
     check(resolve_preset("不用预设") == NO_PRESET_KEY, "中文名称选择无预设")
     check(preset_number(NO_PRESET_KEY) == 0, "无预设显示编号 0")
     check(resolve_preset(str(len(PRESET_ORDER) + 1)) is None, "越界编号不可用")
-    check(resolve_preset("hiten") == "hiten", "英文键直接命中")
-    check(resolve_preset("HITEN") == "hiten", "大写不敏感")
-    check(resolve_preset("  pop  ") == "pop", "首尾空格被忽略")
-    check(resolve_preset("成熟妩媚") == "mature", "中文标签命中")
+    check(resolve_preset("iceblue") == "iceblue", "英文键直接命中")
+    check(resolve_preset("ICEBLUE") == "iceblue", "大写不敏感")
+    check(resolve_preset("  neon_flat  ") == "neon_flat", "首尾空格被忽略")
+    check(resolve_preset("高光成熟人物") == "glossy_mature", "中文标签命中")
+    check(
+        tuple(resolve_preset(str(i)) for i in range(6, 10))
+        == ("golden_backlight", "dreamy_floral", "pastel_chibi", "filmgrain_illustration"),
+        "新增 6～9 号映射固定",
+    )
+    check(resolve_preset("粉彩无描边 Q版") == "pastel_chibi", "新增中文标签命中")
     check(resolve_preset("不存在的风格") is None, "未知名称返回 None")
     check(resolve_preset("") is None, "空串返回 None")
     check(resolve_preset(None) is None, "None 输入不抛异常")
@@ -73,15 +79,18 @@ def test_resolve_size():
 
 def test_build_prompt():
     print("正面提示词组装：")
-    prompt, _ = build_prompt("hiten", "1girl, white dress", index=0)
+    prompt, _ = build_prompt("iceblue", "1girl, white dress", index=0)
     check(QUALITY in prompt, "包含 NAI4.5 质量词")
     check("masterpiece" not in prompt, "不含 NAI3 质量词")
     check("year 2024" in prompt, "包含年份标签")
-    check("artist:hiten" in prompt, "包含预设画师串")
+    check(
+        any(name in prompt for name in ("artist:pan_(mimi)", "artist:skinfang")),
+        "包含法典清洗后的预设画师串",
+    )
     check("1girl, white dress" in prompt, "包含用户描述")
     check(prompt.index("artist:") < prompt.index(QUALITY), "画师串在质量词之前")
 
-    empty, _ = build_prompt("laowuyang", "", index=0)
+    empty, _ = build_prompt("iceblue", "", index=0)
     check(QUALITY in empty, "描述为空仍产出有效提示词")
     check(not empty.endswith(", "), "无尾随逗号")
 
@@ -130,30 +139,42 @@ def test_variation():
         combinations = [pick_variant(key, index=i) for i in range(count)]
         check(len(set(combinations)) == count, f"{key} 完整周期覆盖全部组合")
         cycle = combinations + combinations[:1]
+        if len(PRESETS[key]["artist_variants"]) > 1:
+            check(
+                all(left[0] != right[0] for left, right in zip(cycle, cycle[1:])),
+                f"{key} 相邻画师主力不重复",
+            )
+        else:
+            check(
+                all(left[1:] != right[1:] for left, right in zip(cycle, cycle[1:])),
+                f"{key} 锁定画师时由画风或五官保持变化",
+            )
+        # 完整周期必须覆盖画师、画风和五官的全部组合。
         check(
-            all(left[0] != right[0] for left, right in zip(cycle, cycle[1:])),
-            f"{key} 相邻画师主力不重复",
+            len({item[0] for item in combinations}) == len(PRESETS[key]["artist_variants"]),
+            f"{key} 覆盖全部画师变体",
         )
         check(
-            all(left[1] != right[1] for left, right in zip(cycle, cycle[1:])),
-            f"{key} 相邻五官不重复",
+            len({item[1] for item in combinations}) == len(PRESETS[key]["positive_variants"]),
+            f"{key} 覆盖全部正面画风变体",
+        )
+        check(
+            len({item[2] for item in combinations}) == len(PRESETS[key]["faces"]),
+            f"{key} 覆盖全部五官变体",
         )
 
     print("画师主力轮换：")
     for key in PRESET_ORDER:
         variants = PRESETS[key]["artist_variants"]
-        check(len(variants) >= 3, f"{key} 至少 3 个画师变体")
+        check(len(variants) >= 1, f"{key} 至少 1 个画师变体")
         check(len(set(variants)) == len(variants), f"{key} 画师变体无重复")
-        # 每个变体都须有唯一主力（花括号提权的画师）
+        # 每个变体的第一个 artist 标签作为主导画师，必须彼此不同。
         leads = []
         for item in variants:
-            lead = [
-                seg.strip()
-                for seg in item.split(",")
-                if seg.strip().startswith("{")
-            ]
-            leads.append(tuple(lead))
-        check(len(set(leads)) == len(leads), f"{key} 各变体主力不同")
+            match = __import__("re").search(r"artist:([a-z0-9_()]+)", item, __import__("re").I)
+            leads.append(match.group(1).lower() if match else item.split(",", 1)[0].strip().lower())
+        required = min(3, len(leads))
+        check(len(set(leads)) >= required, f"{key} 主力画师数量符合锁定策略")
 
     print("五官变体互斥：")
     for key in PRESET_ORDER:
@@ -183,21 +204,21 @@ def test_variation():
     check(not describes_face(""), "空描述不误判")
 
     # 用户自写五官时不注入变体，避免与用户描述对撞
-    custom, custom_neg = build_prompt("mature", "1girl, round face", index=0)
+    custom, custom_neg = build_prompt("glossy_mature", "1girl, round face", index=0)
     check("{{tsurime}}" not in custom, "用户自写五官时不注入变体")
     check(custom_neg == "", "用户自写五官时不注入排他负面词")
-    auto, auto_neg = build_prompt("mature", "1girl, white dress", index=0)
+    auto, auto_neg = build_prompt("glossy_mature", "1girl, white dress", index=0)
     check("{{tsurime}}" in auto, "未写五官时注入变体")
     check(bool(auto_neg), "未写五官时产出排他负面词")
 
     disabled, disabled_neg = build_prompt(
-        "mature",
+        "glossy_mature",
         "1girl, white dress",
         index=0,
         include_face=False,
     )
     check(
-        PRESETS["mature"]["artist_variants"][0] in disabled,
+        PRESETS["glossy_mature"]["artist_variants"][0] in disabled,
         "关闭自动脸型仍保留画师串",
     )
     check("1girl, white dress" in disabled, "关闭自动脸型仍保留用户描述")
@@ -205,7 +226,7 @@ def test_variation():
     check(disabled_neg == "", "关闭自动脸型不注入五官排他负面词")
 
     disabled_negative = build_negative(
-        "mature",
+        "glossy_mature",
         face_negative="big eyes, round face",
         include_face=False,
     )
@@ -214,75 +235,105 @@ def test_variation():
     check("childlike" in disabled_negative.lower(), "关闭自动脸型保留非脸部年龄约束")
 
     print("变体选择：")
-    artist_a, face_a, neg_a = pick_variant("mature", index=0)
-    artist_b, face_b, neg_b = pick_variant("mature", index=0)
-    check((artist_a, face_a, neg_a) == (artist_b, face_b, neg_b), "同 index 结果可复现")
-    count = len(PRESETS["mature"]["artist_variants"])
-    check(pick_variant("mature", index=count)[0] == artist_a, "index 越界按取模回绕")
-    check(all(pick_variant("mature", index=i) for i in range(20)), "大 index 不抛异常")
+    artist_a, positive_a, face_a, neg_a = pick_variant("glossy_mature", index=0)
+    artist_b, positive_b, face_b, neg_b = pick_variant("glossy_mature", index=0)
+    check(
+        (artist_a, positive_a, face_a, neg_a)
+        == (artist_b, positive_b, face_b, neg_b),
+        "同 index 结果可复现",
+    )
+    count = variant_count("glossy_mature")
+    check(
+        pick_variant("glossy_mature", index=count) == pick_variant("glossy_mature", index=0),
+        "完整组合周期结束后回绕",
+    )
+    check(all(pick_variant("glossy_mature", index=i) for i in range(20)), "大 index 不抛异常")
 
 
 def test_build_negative():
     print("负面提示词组装：")
-    neg = build_negative("hiten", allow_nsfw=False)
+    neg = build_negative("iceblue", allow_nsfw=False)
     check("very displeasing" in neg, "含 NAI 美学评分压制词")
     check("{{nude}}" in neg, "关闭 NSFW 时含压制词")
     check("dark background" in neg, "含预设专属负面词")
 
-    allowed = build_negative("hiten", allow_nsfw=True)
+    allowed = build_negative("iceblue", allow_nsfw=True)
     check("{{nude}}" not in allowed, "开启 NSFW 时不含压制词")
 
-    extra = build_negative("hiten", extra="my_custom_tag")
+    extra = build_negative("iceblue", extra="my_custom_tag")
     check("my_custom_tag" in extra, "追加自定义负面词生效")
 
-    face = build_negative("mature", face_negative="round eyes, soft jawline")
+    face = build_negative("glossy_mature", face_negative="round eyes, soft jawline")
     check("round eyes" in face, "五官排他负面词生效")
     check("very displeasing" in face, "五官负面词不覆盖基础负面词")
 
-    custom_mature = build_negative("mature", user_text="1girl, round face")
-    check("round face" not in custom_mature.lower(), "成熟预设不压制用户指定圆脸")
+    custom_mature = build_negative("glossy_mature", user_text="1girl, round face")
+    check("round face" not in custom_mature.lower(), "高光成熟预设不压制用户指定圆脸")
     check("childlike" in custom_mature.lower(), "删除冲突时保留其余预设负面词")
-    custom_ghostblade = build_negative("ghostblade", user_text="1girl, big eyes")
-    check("big eyes" not in custom_ghostblade.lower(), "鬼刀预设不压制用户指定大眼")
-    alias_ghostblade = build_negative("ghostblade", user_text="1girl, large eyes")
-    check("big eyes" not in alias_ghostblade.lower(), "大眼同义标签也能解除冲突")
+    custom_cinematic = build_negative("cinematic", user_text="1girl, big eyes")
+    check("big eyes" not in custom_cinematic.lower(), "电影厚涂预设不压制用户指定大眼")
+    alias_cinematic = build_negative("cinematic", user_text="1girl, large eyes")
+    check("big eyes" not in alias_cinematic.lower(), "大眼同义标签也能解除冲突")
 
-    # pop 与 watercolor 以 flat color 为核心特征，不可被通用负面词压制
-    pop_neg = build_negative("pop")
-    check("flat color" not in pop_neg.lower(), "pop 预设移除 flat color 压制")
-    water_neg = build_negative("watercolor")
-    check("flat color" not in water_neg.lower(), "watercolor 预设移除 flat color 压制")
+    # 霓虹平涂以 flat color 为核心特征，不可被通用负面词压制
+    pop_neg = build_negative("neon_flat")
+    check("flat color" not in pop_neg.lower(), "霓虹平涂移除 flat color 压制")
+    water_neg = build_negative("neon_flat")
+    check("flat color" not in water_neg.lower(), "霓虹平涂保持 flat color 核心特征")
     # 其他预设不应受影响
-    gb_neg = build_negative("ghostblade")
-    check("flat color" in gb_neg.lower(), "ghostblade 保留 flat color 压制")
+    gb_neg = build_negative("cinematic")
+    check("flat color" in gb_neg.lower(), "电影厚涂保留 flat color 压制")
+
+    film_neg = build_negative("filmgrain_illustration")
+    check("film grain" not in film_neg.lower(), "青雾胶片放行 film grain 核心特征")
+    check("chromatic aberration" not in film_neg.lower(), "青雾胶片放行色差核心特征")
+    check("bad quality" in film_neg.lower(), "青雾胶片仍保留基础质量压制")
 
 
 def test_preset_integrity():
     print("预设数据完整性：")
-    check(len(PRESETS) >= 8, f"预设数量充足（{len(PRESETS)} 个）")
+    check(len(PRESETS) == 10, f"预设数量为 0 号加九个实测画风（{len(PRESETS)} 个）")
     check(len(PRESET_ORDER) == len(set(PRESET_ORDER)), "数字顺序无重复项")
     check(
         set(PRESET_ORDER) == set(PRESETS) - {NO_PRESET_KEY},
-        "原 1~8 预设编号保持稳定",
+        "九个预设编号与集合一致",
     )
     for key, data in PRESETS.items():
         check("label" in data and bool(data["label"]), f"{key} 有中文标签")
         check(
             bool(data.get("artist_variants")), f"{key} 有画师变体池"
         )
-        check("style" in data, f"{key} 有风格词字段")
+        check("positive_variants" in data, f"{key} 有正面画风变体字段")
         if key == NO_PRESET_KEY:
             check(data["artist_variants"] == ("",), "无预设不注入预设画师串")
-            check(not data["style"] and not data.get("faces"), "无预设不注入风格和脸型")
+            check(
+                data["positive_variants"] == ("",) and not data.get("faces"),
+                "无预设不注入画风和脸型",
+            )
         else:
             check(bool(data.get("faces")), f"{key} 有五官变体池")
+
+        skipped = {
+            "masterpiece", "best quality", "amazing quality", "very aesthetic",
+            "absurdres", "highres", "year 2024", "year 2025", "1girl", "solo",
+            "cowboy shot", "from above", "from below", "indoors", "outdoors",
+            "nsfw", "rating:explicit",
+        }
+        positive_text = ", ".join(data.get("positive_variants") or ()).lower()
+        leaked = [word for word in skipped if word in positive_text]
+        check(not leaked, f"{key} 正面画风已清除质量/主体/构图/NSFW：{leaked}")
+        source = data.get("source") or {}
+        if key != NO_PRESET_KEY:
+            check(source.get("codex") == "artist_nai45_strings", f"{key} 记录画师串法典来源")
+            check(bool(source.get("entries")), f"{key} 记录候选词条 ID")
 
     print("权重安全性：")
     import re as _re
 
     for key, data in PRESETS.items():
         faces = "".join(f"{a}{b}" for a, b in data.get("faces") or ())
-        text = "".join(data["artist_variants"]) + data["style"] + faces
+        positives = "".join(data.get("positive_variants") or ())
+        text = "".join(data["artist_variants"]) + positives + faces
         # 数值权重超过 1.5 会推崩去噪，产出纯噪点
         for value in _re.findall(r"(\d+\.?\d*)::", text):
             check(float(value) <= 1.5, f"{key} 数值权重 {value} 未超 1.5")
@@ -291,12 +342,12 @@ def test_preset_integrity():
 
     print("风格词冲突检查：")
     for key, data in PRESETS.items():
-        style = data["style"].lower()
-        conflict = "thick brushstrokes" in style and "soft blended shading" in style
+        positives = ", ".join(data.get("positive_variants") or ()).lower()
+        conflict = "thick brushstrokes" in positives and "soft blended shading" in positives
         check(not conflict, f"{key} 无笔触/柔和混合冲突")
 
     print("风格词职责边界：")
-    # 五官、表情、姿势、视角写进 style 会让每张图共用同一张脸与同一机位
+    # 五官、表情、姿势、视角写进画风正面词会让每张图共用同一张脸与同一机位
     forbidden = (
         "tsurime", "tareme", "narrow sharp eyes", "long eyelashes",
         "lipstick", "glossy lips", "cheekbones", "jawline",
@@ -304,9 +355,9 @@ def test_preset_integrity():
         "elegant posture", "sitting", "standing", "looking at viewer",
     )
     for key, data in PRESETS.items():
-        style = data["style"].lower()
-        hit = [word for word in forbidden if word in style]
-        check(not hit, f"{key} 风格词不含五官/构图词：{hit}")
+        positives = ", ".join(data.get("positive_variants") or ()).lower()
+        hit = [word for word in forbidden if word in positives]
+        check(not hit, f"{key} 正面画风不含五官/构图词：{hit}")
 
 
 def test_preset_help():
@@ -314,13 +365,13 @@ def test_preset_help():
     text = preset_help()
     check("0 = 无预设 [none]" in text, "显示 0 号无预设")
     check("/nai画师 添加" in text, "显示个人画师入口")
-    check("1 = 老五样（通用美脸） [laowuyang]" in text, "显示首个预设编号")
-    check("厚涂油画 [oil]" in text, "显示末尾预设")
+    check("1 = 冰蓝柔光（日系） [iceblue]" in text, "显示首个预设编号")
+    check("9 = 青雾胶片插画 [filmgrain_illustration]" in text, "显示末尾预设")
     check(text.startswith("可用画风预设"), "首行为标题")
     check("只选择预设：/nai 1" in text, "显示独立选择示例")
     check("选择并绘图：/nai 1 长发女孩" in text, "显示一步绘图示例")
-    check("种脸型组合" in text, "显示脸型组合数量")
-    check("轮换" in text, "说明自动轮换行为")
+    check("种画师/画风/脸型组合" in text, "显示完整组合数量")
+    check("轮换" in text and "/nai随机" in text, "说明三维轮换与独立随机行为")
 
 
 def main():

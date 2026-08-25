@@ -132,6 +132,11 @@ def run_draw(plugin, event, args):
     return asyncio.run(collect_draw_results(plugin, event, args))
 
 
+async def collect_random_results(plugin, event, args=""):
+    """收集独立随机场景指令结果。"""
+    return [result async for result in plugin.cmd_random_draw(event, args)]
+
+
 async def collect_steg_results(plugin, event, args=""):
     return [result async for result in plugin.cmd_steg_extract(event, args)]
 
@@ -182,22 +187,22 @@ def test_config_and_parse():
         check(plugin._max_concurrent() == 1, "并发数下限生效")
 
         text, preset, size, warning = plugin._parse_args(
-            "-风格 hiten -尺寸 竖图 长发女孩"
+            "-风格 cinematic -尺寸 竖图 长发女孩"
         )
         check(text == "长发女孩", "参数从描述中移除")
-        check(preset == "hiten", "预设参数解析")
+        check(preset == "cinematic", "预设参数解析")
         check(size == "832x1216" and not warning, "合法中文尺寸不产生误报")
 
         text, preset, _, warning = plugin._parse_args("-风格 3 white dress")
-        check(text == "white dress" and preset == "pop", "数字预设参数解析")
+        check(text == "white dress" and preset == "neon_flat", "数字预设参数解析")
         check(not warning, "合法数字预设不产生警告")
 
         text, preset, _, warning = plugin._parse_args("2 white dress")
-        check(text == "white dress" and preset == "hiten", "开头编号直接选择预设")
+        check(text == "white dress" and preset == "cinematic", "开头编号直接选择预设")
         check(not warning, "免参数数字选择不产生警告")
 
         text, preset, _, _ = plugin._parse_args("2girls, white dress")
-        check(text.startswith("2girls") and preset == "laowuyang", "标签数字不被误判为编号")
+        check(text.startswith("2girls") and preset == "iceblue", "标签数字不被误判为编号")
 
         _, _, fallback_size, warning = plugin._parse_args("-尺寸 999x999 red hair")
         check(fallback_size == "832x1216", "非法尺寸回退默认")
@@ -247,29 +252,33 @@ def test_personal_preset_selection():
         preset_help = asyncio.run(plugin.cmd_presets(event))
         check("0 = 无预设" in preset_help[1], "预设清单显示 0 号无预设")
         check("/nai画师 添加" in preset_help[1], "预设清单显示个人画师入口")
-        check("1 = 老五样" in preset_help[1], "预设清单显示数字与中文名")
-        check("8 = 厚涂油画" in preset_help[1], "预设清单显示完整编号范围")
+        check("1 = 冰蓝柔光（日系）" in preset_help[1], "预设清单显示数字与中文名")
+        check("9 = 青雾胶片插画" in preset_help[1], "预设清单显示完整编号范围")
 
         selected = run_draw(plugin, event, "2")
         check(selected[0][0] == "plain" and "已选择" in selected[0][1], "单独编号选择成功")
-        check(plugin._user_presets["user-preset"] == "hiten", "个人预设已保存")
+        check(plugin._user_presets["user-preset"] == "cinematic", "个人预设已保存")
         check(not plugin._last_call, "选择命令不触发冷却")
 
         selected_help = asyncio.run(plugin.cmd_presets(event))
-        check("你的选择：2 = hiten 柔和日系" in selected_help[1], "清单显示个人选择编号")
+        check("你的选择：2 = 冷调电影厚涂" in selected_help[1], "清单显示个人选择编号")
 
         result = run_draw(plugin, event, "white dress")
         check(result[-1] == ("fake",), "后续描述进入生成流程")
-        check("2 = hiten 柔和日系" in result[0][1], "进度反馈显示个人预设")
+        check("2 = 冷调电影厚涂" in result[0][1], "进度反馈显示个人预设")
         check("尺寸：832x1216" in result[0][1], "进度反馈显示实际尺寸")
         check("NSFW：关闭" in result[0][1], "进度反馈显示 NSFW 状态")
         check("自动脸型：开启" in result[0][1], "进度反馈显示自动脸型状态")
         check("个人画师：未设置" in result[0][1], "进度反馈显示个人画师状态")
-        check(calls[-1][2] == "hiten", "后续描述使用个人预设")
+        check(calls[-1][2] == "cinematic", "后续描述使用个人预设")
 
         run_draw(plugin, event, "3 night city")
-        check(calls[-1][2] == "pop", "一步式编号绘图使用对应预设")
-        check(plugin._user_presets["user-preset"] == "pop", "一步式绘图更新个人预设")
+        check(calls[-1][2] == "neon_flat", "一步式编号绘图使用对应预设")
+        check(plugin._user_presets["user-preset"] == "neon_flat", "一步式绘图更新个人预设")
+
+        run_draw(plugin, event, "9 mist portrait")
+        check(calls[-1][2] == "filmgrain_illustration", "末尾编号使用青雾胶片预设")
+        check(plugin._user_presets["user-preset"] == "filmgrain_illustration", "末尾编号更新个人预设")
 
         no_preset = run_draw(plugin, event, "0")
         check("已选择" in no_preset[0][1] and "无预设" in no_preset[0][1], "单独选择无预设成功")
@@ -278,8 +287,8 @@ def test_personal_preset_selection():
         run_draw(plugin, event, "0 night city")
         check(calls[-1][2] == "none", "一步式无预设绘图进入生成链路")
 
-        invalid = run_draw(plugin, event, "9")
-        check(invalid[0][0] == "plain" and "0~8" in invalid[0][1], "越界编号返回范围提示")
+        invalid = run_draw(plugin, event, "10")
+        check(invalid[0][0] == "plain" and "0~9" in invalid[0][1], "越界编号返回范围提示")
 
         asyncio.run(plugin.terminate())
         check(not plugin._user_presets, "插件卸载时清理个人预设")
@@ -302,8 +311,8 @@ def test_input_validation_and_feedback():
 
         plugin._generate_and_send = fake_generate
 
-        invalid = run_draw(plugin, event, "9 white dress")
-        check(invalid[0][0] == "plain" and "0~8" in invalid[0][1], "越界快捷编号被拒绝")
+        invalid = run_draw(plugin, event, "10 white dress")
+        check(invalid[0][0] == "plain" and "0~9" in invalid[0][1], "越界快捷编号被拒绝")
         check(not calls and "user-input" not in plugin._user_presets, "越界编号不生成也不保存")
 
         async def no_tags(*args, **kwargs):
@@ -376,7 +385,7 @@ def test_nsfw_command():
                 plugin._generate_and_send(
                     user,
                     "1girl",
-                    "laowuyang",
+                    "iceblue",
                     "832x832",
                     "",
                     sender_id="user-nsfw",
@@ -456,7 +465,7 @@ def test_face_variation_command():
                 plugin._generate_and_send(
                     user,
                     "1girl",
-                    "laowuyang",
+                    "iceblue",
                     "832x832",
                     "",
                     sender_id="user-face",
@@ -701,10 +710,48 @@ def test_failure_releases_cooldown():
         plugin._api = FailingAPI(error_type)
         event = FakeEvent("user-fail")
         result = asyncio.run(
-            plugin._generate_and_send(event, "1girl", "laowuyang", "832x832", "")
+            plugin._generate_and_send(event, "1girl", "iceblue", "832x832", "")
         )
         check(result[0] == "plain" and "上游失败" in result[1], "上游失败返回可读提示")
         check(not plugin._last_call, "失败后释放冷却状态")
+
+
+def test_random_scene_command():
+    print("独立随机场景指令：")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        plugin_cls = load_plugin(temp_dir)
+        plugin = plugin_cls(
+            object(),
+            {"api_base": "http://example.test", "api_key": "sk-test", "cooldown": 0},
+        )
+        event = FakeEvent("user-random")
+        captured = []
+
+        async def fake_generate(*args):
+            captured.append(args)
+            return ("fake-random",)
+
+        plugin._generate_and_send = fake_generate
+        scene = {
+            "title": "测试法典场景",
+            "prompt": "sitting in a wooden boat, 1.2::medium shot::",
+            "entry_id": "composition_style_test",
+        }
+        with patch("astrbot_plugin_nai_draw.main.composition_scene", return_value=scene):
+            result = asyncio.run(collect_random_results(plugin, event))
+
+        check("测试法典场景" in result[0][1], "随机指令反馈场景标题")
+        check(result[-1] == ("fake-random",), "随机指令进入统一生成链路")
+        check(captured[-1][1] == scene["prompt"], "随机指令使用完整法典场景串")
+        check(captured[-1][2] == "iceblue", "随机指令继承默认预设")
+
+        with patch("astrbot_plugin_nai_draw.main.composition_scene", return_value=scene):
+            result = asyncio.run(
+                collect_random_results(plugin, event, "-风格 4 -尺寸 横图")
+            )
+        check(captured[-1][2] == "glossy_mature", "随机指令支持画风参数")
+        check(captured[-1][3] == "1216x832", "随机指令支持尺寸参数")
+        check("4 = 高光成熟人物" in result[0][1], "随机反馈显示实际画风")
 
 
 def test_variant_rotation():
@@ -713,29 +760,29 @@ def test_variant_rotation():
         plugin_cls = load_plugin(temp_dir)
         plugin = plugin_cls(object(), {})
         preset_module = importlib.import_module("astrbot_plugin_nai_draw.presets")
-        count = preset_module.variant_count("laowuyang")
+        count = preset_module.variant_count("iceblue")
 
         with patch("astrbot_plugin_nai_draw.main.random.randrange", return_value=0):
             indexes = [
-                plugin._next_variant_index("user-a", "laowuyang")
+                plugin._next_variant_index("user-a", "iceblue")
                 for _ in range(count + 1)
             ]
-            other_first = plugin._next_variant_index("user-b", "laowuyang")
+            other_first = plugin._next_variant_index("user-b", "iceblue")
 
         check(indexes[:-1] == list(range(count)), "完整周期按顺序遍历且不重复")
         check(indexes[-1] == 0, "周期结束后回到首个组合")
         check(other_first == 0, "不同用户拥有独立轮换状态")
 
         combinations = [
-            preset_module.pick_variant("laowuyang", index=index)
+            preset_module.pick_variant("iceblue", index=index)
             for index in indexes
         ]
         check(
             all(
-                left[0] != right[0] and left[1] != right[1]
+                left[0] != right[0] or left[1] != right[1] or left[2] != right[2]
                 for left, right in zip(combinations, combinations[1:])
             ),
-            "生产轮换相邻画师和五官均不同",
+            "生产轮换相邻组合至少一个维度不同",
         )
 
         asyncio.run(plugin.terminate())
@@ -756,6 +803,7 @@ def main():
         test_artist_command,
         test_stego_commands,
         test_failure_releases_cooldown,
+        test_random_scene_command,
         test_variant_rotation,
     ):
         func()

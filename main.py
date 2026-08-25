@@ -1,4 +1,4 @@
-"""AstrBot 叶子的逼插件 v1.7.11
+"""AstrBot 叶子的逼插件 v1.8.0
 
 基于 NovelAI Diffusion 4.5，内置实测可用的画师串预设。
 """
@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .nai_api import NaiAPI, NaiAPIError
+from .composition_presets import composition_scene
 from .translator import to_tags
 from .vangonography_api import (
     StegoFormatError,
@@ -46,7 +47,7 @@ ARG_PATTERN = re.compile(r"-(?:风格|预设|style|p)\s*[=:]?\s*(\S+)", re.I)
 SIZE_PATTERN = re.compile(r"-(?:尺寸|size|s)\s*[=:]?\s*(\S+)", re.I)
 QUICK_PRESET_PATTERN = re.compile(r"^\s*(\d+)(?:\s+|$)")
 
-@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.7.11")
+@register("nai_draw", "TsoiTZF", "叶子的逼，NovelAI 绘画与画师串预设，支持图片隐写", "1.8.0")
 class NaiDrawPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -158,9 +159,9 @@ class NaiDrawPlugin(Star):
         return self._int_config("retries", 3, 1, 5)
 
     def _default_preset(self):
-        """读取默认预设，未知值回退 laowuyang。"""
-        key = resolve_preset(self.config.get("default_preset", "laowuyang"))
-        return key or "laowuyang"
+        """读取默认预设，未知或已废弃值回退冰蓝柔光。"""
+        key = resolve_preset(self.config.get("default_preset", "iceblue"))
+        return key or "iceblue"
 
     def _default_size(self):
         return resolve_size(self.config.get("default_size", "832x1216"))
@@ -223,6 +224,7 @@ class NaiDrawPlugin(Star):
             "\n选择预设：/nai 1"
             "\n选择并绘图：/nai 1 长发女孩"
             "\n个人画师：/nai画师 添加 artist:名称"
+            "\n随机完整场景：/nai随机 -风格 1 -尺寸 横图"
         )
         return event.plain_result(text)
 
@@ -360,6 +362,53 @@ class NaiDrawPlugin(Star):
             f"[成功] 已{verb}个人画师串，当前共 {len(combined)} 个{note}。"
         )
 
+    @filter.command("nai随机", alias={"nai_random", "nairandom"})
+    async def cmd_random_draw(self, event: AstrMessageEvent, args: str = ""):
+        """从构图风格法典随机选取完整场景并生成图片。"""
+        if not self._api.configured:
+            yield event.plain_result(
+                "[失败] 插件未配置 API 地址或密钥，请在管理面板填写后重试。"
+            )
+            return
+
+        sender_id = self._sender_id(event)
+        raw = str(args or "").strip()
+        remaining, preset_key, size, warning = self._parse_args(
+            raw, self._user_presets.get(sender_id)
+        )
+        if remaining:
+            warning = "；".join(
+                part for part in (warning, f"未识别的随机参数已忽略：{remaining}") if part
+            )
+
+        blocked = self._cooldown_remaining(sender_id)
+        if blocked > 0:
+            yield event.plain_result(f"[提示] 冷却中，请 {blocked} 秒后再试。")
+            return
+
+        reservation = time.time()
+        self._last_call[sender_id] = reservation
+        scene = composition_scene()
+        yield event.plain_result(
+            "[随机] 已从构图风格法典抽取完整场景，正在生成。\n"
+            f"场景：{scene['title']}\n"
+            f"预设：{preset_number(preset_key)} = {PRESETS[preset_key]['label']}\n"
+            f"尺寸：{size}"
+        )
+        if warning:
+            yield event.plain_result(f"[提示] {warning}")
+
+        result = await self._generate_and_send(
+            event,
+            scene["prompt"],
+            preset_key,
+            size,
+            warning,
+            sender_id,
+            reservation,
+        )
+        yield result
+
     @filter.command("nai")
     async def cmd_draw(self, event: AstrMessageEvent, args: str = ""):
         """生成图片。支持 -风格 与 -尺寸 参数，其余文本为画面描述。"""
@@ -376,6 +425,7 @@ class NaiDrawPlugin(Star):
                 "  /nai 1（选择第一个预设）\n"
                 "  /nai 1girl, long hair, white dress\n"
                 "  /nai 2 -尺寸 方图 red qipao\n"
+                "随机完整场景：/nai随机 [-风格 1] [-尺寸 横图]\n"
                 "查看预设：/nai预设\n"
                 "无预设：/nai 0 画面描述\n"
                 "个人画师：/nai画师 添加 artist:名称\n"

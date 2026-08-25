@@ -15,6 +15,7 @@ from pathlib import Path
 from astrbot.api import logger
 
 from .nai_api import NaiAPIError
+from .composition_presets import composition_scene, composition_scene_payload
 from .presets import (
     PRESET_ORDER,
     PRESETS,
@@ -250,6 +251,7 @@ class NaiWebUI:
                     "key": key,
                     "label": PRESETS[key]["label"],
                     "faces": variant_count(key),
+                    "source": dict(PRESETS[key].get("source") or {}),
                 }
             )
         return items
@@ -281,6 +283,7 @@ class NaiWebUI:
                     "max_concurrent": plugin._max_concurrent(),
                     "cover_dir": str(plugin._cover_dir),
                     "presets": self._preset_payload(),
+                    "composition_scenes": composition_scene_payload(),
                     "sizes": list(SIZE_CHOICES),
                     "gallery": self._list_outputs(),
                     "covers": self._list_covers(),
@@ -340,12 +343,16 @@ class NaiWebUI:
             raise WebUIError("插件未配置 API 地址或密钥，请先在管理面板填写。")
 
         prompt_text = str(data.get("prompt") or "").strip()
+        scene = None
+        if data.get("random_scene"):
+            scene = composition_scene(data.get("scene_index"))
+            prompt_text = scene["prompt"]
         if not prompt_text:
             raise WebUIError("请填写画面描述。")
 
         preset_key = resolve_preset(data.get("preset") or plugin._default_preset())
         if not preset_key:
-            raise WebUIError("未知预设，请从 0～8 中选择。")
+            raise WebUIError(f"未知预设，请从 0～{len(PRESET_ORDER)} 中选择。")
         requested_size = str(data.get("size") or plugin._default_size())
         size = resolve_size(requested_size, "")
         if not size:
@@ -418,6 +425,7 @@ class NaiWebUI:
             "artists": list(plugin._artist_tags(sender_id)),
             "rejected_artists": rejected,
             "note": warning,
+            "scene": scene,
             "prompt": produced["prompt"],
             "negative": produced["negative"],
             "image": self._encode_image(image_path),

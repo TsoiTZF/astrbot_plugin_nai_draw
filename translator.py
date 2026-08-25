@@ -518,7 +518,7 @@ DANBOORU_AUTOCOMPLETE = "https://danbooru.donmai.us/autocomplete.json"
 DANBOORU_WIKI = "https://danbooru.donmai.us/wiki_pages.json"
 DANBOORU_TAGS = "https://danbooru.donmai.us/tags.json"
 DANBOORU_UA = (
-    "astrbot_plugin_nai_draw/1.7.11 "
+    "astrbot_plugin_nai_draw/1.8.0 "
     "(+https://github.com/TsoiTZF/astrbot_plugin_nai_draw)"
 )
 BANGUMI_SEARCH = "https://api.bgm.tv/v0/search/characters"

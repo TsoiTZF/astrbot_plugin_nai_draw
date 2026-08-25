@@ -618,14 +618,15 @@ textarea#prompt {
 }
 
 .swatch-none { background: linear-gradient(90deg, #52525b, #71717a); }
-.swatch-laowuyang { background: linear-gradient(90deg, #c5a059, #f3e5ab); }
-.swatch-hiten { background: linear-gradient(90deg, #38bdf8, #818cf8); }
-.swatch-pop { background: linear-gradient(90deg, #ec4899, #c5a059); }
-.swatch-ghostblade { background: linear-gradient(90deg, #6366f1, #3b82f6); }
-.swatch-mature { background: linear-gradient(90deg, #e11d48, #9333ea); }
-.swatch-watercolor { background: linear-gradient(90deg, #10b981, #06b6d4); }
-.swatch-retro { background: linear-gradient(90deg, #c5a059, #8c6d32); }
-.swatch-oil { background: linear-gradient(90deg, #8c6d32, #f3e5ab); }
+.swatch-iceblue { background: linear-gradient(90deg, #d8f3ff, #6bbde8, #7f8cff); }
+.swatch-cinematic { background: linear-gradient(90deg, #111827, #475569, #93a4b8); }
+.swatch-neon_flat { background: linear-gradient(90deg, #ff1493, #8b5cf6, #00e5ff); }
+.swatch-glossy_mature { background: linear-gradient(90deg, #111827, #b91c5c, #f6d1df); }
+.swatch-dark_portrait { background: linear-gradient(90deg, #05070d, #273244, #c28a78); }
+.swatch-golden_backlight { background: linear-gradient(90deg, #3f1f12, #d77b25, #ffd98b); }
+.swatch-dreamy_floral { background: linear-gradient(90deg, #7357a8, #d99bd6, #ffe5d2); }
+.swatch-pastel_chibi { background: linear-gradient(90deg, #8ecae6, #ffafcc, #fff2a8); }
+.swatch-filmgrain_illustration { background: linear-gradient(90deg, #17384a, #5faeb4, #d8f1e8); }
 
 .preset-meta-row {
   display: flex;

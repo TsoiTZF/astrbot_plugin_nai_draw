@@ -10,13 +10,15 @@
    会互相抵消，三层括号只会放大冲突。
 4. 平涂系画师（modare、mignon、kukka 等）与精细渲染要求互斥，
    仅在需要极简风格时使用。
-5. ``style`` 只负责画风与渲染，禁止写入五官、表情、姿势、构图与视角。
+5. ``positive_variants`` 只负责画风与渲染，禁止写入五官、表情、姿势、构图与视角。
    这类词一旦固定，同一预设产出的每张图都会共用同一张脸与同一个机位。
+6. 法典原始串必须拆成 ``artist_variants``、``positive_variants`` 与 ``negative``。
+   质量词、年份、主体、构图、NSFW 和超限权重不得混入画风字段。
 
-出图多样性由两个组合维度保证：
+出图多样性由三个组合维度保证：
 
-* ``artist_variants``：同一批画师内轮换主导权，画风基底不变、脸型随主力漂移。
-  集合不换人，只改权重，避免引入未实测的画师标签。
+* ``artist_variants``：清洗后的 NAI4.5 画师配方轮换，单项权重不超过 1.5。
+* ``positive_variants``：同一风格下轮换上色、笔触、光影、材质与色板。
 * ``faces``：五官特征池，按不重复组合顺序取一组，并把其余变体的特征写入负面词，
   强制拉开差距。用户自己写了五官时不注入，避免与用户描述对撞。
 """
@@ -72,7 +74,7 @@ FACE_TRAIT_GROUPS = (
 # 每项为 (五官正面词, 排他负面词)。负面词写入其余变体的特征，
 # 单靠正面词不足以拉开脸型差距，实测必须双向施压。
 
-# 日系少女系：老五样、hiten、pop、水彩、复古共用
+# 日系少女系：冰蓝柔光与霓虹平涂共用
 FACES_ANIME = (
     ("{{round eyes}}, {{thick eyelashes}}, {{soft jawline}}, {{small nose}}, "
      "{{detailed eyes}}",
@@ -91,7 +93,7 @@ FACES_ANIME = (
      "narrow eyes, tsurime, thin eyebrows"),
 )
 
-# 成熟系：mature 预设专用，锐利与柔和两极各两档
+# 成熟人物系：高光成熟人物与暗夜轻熟肖像共用
 FACES_MATURE = (
     ("{{tsurime}}, {{sharp eyes}}, {{thin eyebrows}}, {{high nose bridge}}, "
      "{{sharp jawline}}, {{dark red lipstick}}, {{detailed eyes}}",
@@ -110,7 +112,7 @@ FACES_MATURE = (
      "narrow eyes, thin lips, pale skin"),
 )
 
-# 半写实系：鬼刀、油画共用。禁用夸张大眼，五官按写实骨相分化。
+# 半写实系：冷调电影厚涂与青雾胶片插画共用。禁用夸张大眼，五官按写实骨相分化。
 FACES_SEMIREAL = (
     ("{{realistic eyes}}, {{detailed iris}}, {{straight nose}}, "
      "{{defined jawline}}, {{natural lips}}",
@@ -129,179 +131,210 @@ FACES_SEMIREAL = (
      "big eyes, round face, wide jaw"),
 )
 
-# ==================== 画师主导权变体 ====================
-# 同一集合内轮换主力，不引入新画师标签。
-# 首位为主力（双层花括号），其余按方括号层数递减影响力。
+# Q 版系：粉彩无描边 Q 版专用。压写实五官，拉开圆眼、下垂眼、猫眼和点状眼。
+FACES_CHIBI = (
+    ("{{round eyes}}, {{sparkling eyes}}, {{small nose}}, {{tiny mouth}}, "
+     "{{detailed eyes}}",
+     "narrow eyes, tsurime, realistic eyes"),
 
-# 法典「老五样」：社区沿用多年的美脸基础串。
-# 四个变体分别以 ciloranko、ningen_mame、sho、tianliang 为主力。
-LAOWUYANG_VARIANTS = (
-    "[artist:ningen_mame], {artist:ciloranko}, [artist:sho_(sho_lwlw)], "
-    "[[artist:tianliang_duohe_fangdongye]], [[artist:rhasta]]",
+    ("{{tareme}}, {{droopy eyes}}, {{long eyelashes}}, {{soft cheeks}}, "
+     "{{detailed eyes}}",
+     "tsurime, narrow eyes, sharp jawline"),
 
-    "{artist:ningen_mame}, artist:ciloranko, [[artist:sho_(sho_lwlw)]], "
-    "[[artist:tianliang_duohe_fangdongye]], [artist:rhasta]",
+    ("{{cat eyes}}, {{slit pupils}}, {{small mouth}}, {{round face}}, "
+     "{{detailed eyes}}",
+     "round eyes, realistic eyes, thin lips"),
 
-    "[[artist:ningen_mame]], artist:ciloranko, {artist:sho_(sho_lwlw)}, "
-    "[artist:tianliang_duohe_fangdongye], [[artist:rhasta]]",
-
-    "[artist:ningen_mame], [artist:ciloranko], [[artist:sho_(sho_lwlw)]], "
-    "{artist:tianliang_duohe_fangdongye}, artist:rhasta",
+    ("{{dot eyes}}, {{simple eyes}}, {{tiny nose}}, {{small mouth}}, "
+     "{{round face}}",
+     "realistic eyes, detailed iris, sharp jawline"),
 )
 
-# 兼容旧引用：默认取第一个变体（ciloranko 主力）
-LAOWUYANG = LAOWUYANG_VARIANTS[0]
-
-
-def _with_hiten(variants):
-    """在老五样各变体末尾挂 hiten，用于 hiten 与 pop 预设。"""
-    return tuple(f"{item}, [artist:hiten]" for item in variants)
-
+# ==================== 法典来源与清洗后的画风变体 ====================
+CODEX_ARTIST_SOURCE = {
+    "codex": "artist_nai45_strings",
+    "version": "2026.7.10",
+    "url": "https://novelai.quicktagcloud.com/?codex=artist_nai45_strings",
+}
 
 PRESETS = {
     NO_PRESET_KEY: {
         "label": "无预设",
         "artist_variants": ("",),
-        "style": "",
+        "positive_variants": ("",),
         "faces": (),
         "negative": "",
+        "source": {},
     },
-    "laowuyang": {
-        "label": "老五样（通用美脸）",
-        "artist_variants": LAOWUYANG_VARIANTS,
-        "style": "soft shading, soft lighting",
-        "faces": FACES_ANIME,
-        "negative": "",
-    },
-    "hiten": {
-        "label": "hiten 柔和日系",
-        "artist_variants": _with_hiten(LAOWUYANG_VARIANTS),
-        "style": "soft shading, soft lighting, pastel colors, bright",
-        "faces": FACES_ANIME,
-        # 深色背景与强轮廓光会造成环境色污染，柔和系必须压制
-        "negative": "dark background, black background, harsh shadow, strong rim light",
-    },
-    "pop": {
-        "label": "波普撞色（法典风格串）",
-        "artist_variants": _with_hiten(LAOWUYANG_VARIANTS),
-        # 用户实测认可的风格串。paint splatter 与 arrogant 属于风格标志，予以保留；
-        # close shot 与 from side 已移出，交由用户决定构图。
-        "style": (
-            "colorful, pop style, realistic, flat color, "
-            "paint splatter on face, arrogant, demented, soft shading"
-        ),
-        "faces": FACES_ANIME,
-        # flat color 是本风格核心特征，不可压制
-        "negative": "dark background, black background, harsh shadow",
-        "skip_negative": ("flat color",),
-    },
-    "ghostblade": {
-        "label": "鬼刀厚涂（wlop 系）",
-        # wlop 权重不得超过双层花括号，实测更高会推崩去噪产出纯噪点。
+    "iceblue": {
+        "label": "冰蓝柔光（日系）",
         "artist_variants": (
-            "{{artist:wlop}}, artist:guweiz, [artist:sakimichan]",
-            "{artist:wlop}, {artist:guweiz}, [[artist:sakimichan]]",
-            "artist:wlop, [artist:guweiz], {artist:sakimichan}",
+            "0.45::artist:pan_(mimi)::, 0.6::artist:skinfang::, "
+            "0.7::artist:hoshi_(snacherubi)::, 0.75::artist:comodox::, "
+            "0.8::artist:chen_bin::",
         ),
-        "style": (
-            "{{digital painting}}, {{soft blended shading}}, semi-realistic, "
-            "realistic proportions, detailed skin, "
-            "{{dramatic lighting}}, {{rim light}}, volumetric fog, "
-            "muted cyan and violet, cold tone, depth of field"
+        "positive_variants": (
+            "cool color palette, neutral lighting, soft lighting, pale skin",
+            "plain light background, soft even lighting, cool blue-white color scheme",
+            "pale blue pastel palette, soft cool rim lighting, ethereal clean mood, gentle focus",
+        ),
+        "faces": FACES_ANIME,
+        "negative": "dark background, black background, harsh shadow, oversaturated, text",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 010",)},
+    },
+    "cinematic": {
+        "label": "冷调电影厚涂",
+        "artist_variants": (
+            "0.9::artist:wlop::, 0.3::artist:domo_(domokizusuki)::, "
+            "1.1::artist:au_(d_elete)::",
+            "artist:murata_yuusuke, 1.05::artist:tianliang_duohe_fangdongye::, "
+            "0.95::artist:ciloranko::, 0.95::artist:ningen_mame::, "
+            "0.95::artist:healthyman::",
+            "artist:ningen_mame, artist:mika_pikazo, [artist:reoen], "
+            "[artist:tianliang_duohe_fangdongye], [artist:kantoku]",
+        ),
+        "positive_variants": (
+            "animated painting, best illumination, best shadow, dramatic light and shadow",
+            "chiaroscuro, cinematic lighting, sharp focus, vibrant colors, realistic illustration",
+            "shiny skin, tyndall effect, backlighting, sidelighting, lens flare, depth of field",
         ),
         "faces": FACES_SEMIREAL,
-        "negative": (
-            "{{anime style}}, {{cel shading}}, {{flat color}}, {{chibi}}, "
-            "{{thick outline}}, {{sketch}}, cute, kawaii, big eyes, round face"
-        ),
+        "negative": "anime screencap, cel shading, flat color, chibi, thick outline, sketch, simple illustration, text",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 029", "W.O.F 030", "W.O.F 041", "W.O.F 042")},
     },
-    "mature": {
-        "label": "成熟妩媚",
+    "neon_flat": {
+        "label": "霓虹平涂",
         "artist_variants": (
-            "{{artist:gusha_s}}, artist:as109, [artist:tidsean], "
-            "[artist:hews], [[artist:cutesexyrobutts]]",
-
-            "{{artist:as109}}, [artist:gusha_s], [[artist:tidsean]], "
-            "[artist:hews], [[artist:cutesexyrobutts]]",
-
-            "{{artist:tidsean}}, [artist:hews], [[artist:as109]], "
-            "[[artist:gusha_s]], [[artist:cutesexyrobutts]]",
-
-            "{{artist:hews}}, artist:cutesexyrobutts, [[artist:gusha_s]], "
-            "[[artist:as109]], [[artist:tidsean]]",
+            "1.2::artist:vanripper::, 0.8::artist:batrobin_k::, "
+            "0.5::artist:take_(illustrator)::, 0.5::artist:j.k.::, "
+            "0.4::artist:jtveemo::",
+            "1.16::artist:kedama_milk::, 0.86::artist:mika_pikazo::, "
+            "[artist:ciloranko], [artist:reoen]",
+            "0.8::artist:furau::, 0.75::artist:wagashi_(dagashiya)::, "
+            "0.9::artist:deadflow::, [artist:mx2j]",
         ),
-        # 只保留成熟感锚点与皮肤质感，五官交由 faces 轮换
-        "style": (
-            "{{mature female}}, {{adult woman}}, {{curvy figure}}, "
-            "glossy skin, soft shading"
+        "positive_variants": (
+            "style parody, muse dash (style), cartoonized, toon (style), animated, thick outline, bold color",
+            "blue theme, polka dot background, graphic design, bold flat colors, clean shapes",
+            "colorful, shiny color accents, azpainter style, thin rough lines, energetic palette",
+        ),
+        "faces": FACES_ANIME,
+        "negative": "artist collaboration, multiple views, text, muted colors, dull palette",
+        "skip_negative": ("flat color",),
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 123", "W.O.F 180", "W.O.F 019")},
+    },
+    "glossy_mature": {
+        "label": "高光成熟人物",
+        "artist_variants": (
+            "0.95::artist:healthyman::, 0.9::artist:modare::, "
+            "0.85::artist:fuzichoco::, 0.85::artist:wanke::, [artist:ciloranko]",
+            "1.3::artist:wagashi_(dagashiya)::, artist:wlop, "
+            "0.4::artist:ratatatat::, 0.7::artist:imamura_ryou::, [artist:healthyman]",
+            "0.8::artist:furau::, 0.75::artist:wagashi_(dagashiya)::, "
+            "0.9::artist:deadflow::, 1.2::artist:mdf_an::, [artist:freng]",
+        ),
+        "positive_variants": (
+            "mature female, adult woman, curvy figure, glossy skin, soft shading",
+            "mature female, elegant illustration, detailed skin, cinematic lighting, refined coloring",
+            "adult woman, polished rendering, shiny skin, rich contrast, glamorous atmosphere",
         ),
         "faces": FACES_MATURE,
-        # mature female 在正面词中，故负面词反向压制幼态
-        "negative": (
-            "{{loli}}, {{child}}, {{childlike}}, {{young}}, "
-            "{{round face}}, {{chubby cheeks}}, {{innocent}}, {{moe}}"
-        ),
+        "negative": "loli, child, childlike, young, round face, chubby cheeks, innocent, moe, simple illustration, text",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 041", "梦神NAI4.5F画风合集 0166", "W.O.F 019")},
     },
-    "watercolor": {
-        "label": "水彩透明",
+    "dark_portrait": {
+        "label": "暗夜轻熟肖像",
         "artist_variants": (
-            "{artist:alphonse_(white_datura)}, [artist:maccha_(mochancc)], "
-            "[[artist:pottsness]]",
-
-            "[artist:alphonse_(white_datura)], {artist:maccha_(mochancc)}, "
-            "[artist:pottsness]",
-
-            "[[artist:alphonse_(white_datura)]], [artist:maccha_(mochancc)], "
-            "{artist:pottsness}",
+            "0.7::artist:ciloranko::, 0.6::artist:mika_pikazo::, "
+            "0.5::artist:mx2j::, 0.5::artist:dramz::, artist:96yottea",
+            "artist:ciloranko, 0.95::artist:sho_(sho_lwlw)::, "
+            "0.91::artist:tianliang_duohe_fangdongye::, 0.74::artist:kani_biimu::",
+            "artist:ningen_mame, artist:mika_pikazo, [artist:reoen], "
+            "[artist:tianliang_duohe_fangdongye], [artist:ask_(askzy)], [artist:kantoku]",
+            "1.16::artist:kedama_milk::, 0.86::artist:mika_pikazo::, "
+            "[artist:ciloranko], [artist:sho_(sho_lwlw)]",
         ),
-        "style": (
-            "{{watercolor (medium)}}, {{traditional media}}, wet on wet, "
-            "color bleeding, soft edges, pale palette, paper texture"
+        "positive_variants": (
+            "vivid details, soft shading, smooth skin texture, natural skin glow, novel illustration, dark background, low-key lighting",
+            "clean illustration, detailed shading, gentle contrast, polished coloring, dark background, dim ambient light",
+            "official art, shiny skin, cinematic lighting, depth of field, night atmosphere, deep shadow background",
+        ),
+        "faces": FACES_MATURE,
+        "negative": "simple illustration, artist collaboration, multiple views, text, Japanese text, blurry, bright white background",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 005", "W.O.F 103", "W.O.F 152", "W.O.F 180")},
+    },
+    "golden_backlight": {
+        "label": "暖金逆光",
+        "artist_variants": (
+            "0.3::artist:toosaka_asagi::, 0.3::artist:miv4t::, "
+            "0.3::artist:huashijw::, 0.1::artist:quasarcake::, "
+            "artist:hibioes, artist:konya_karasue, artist:rella",
+        ),
+        "positive_variants": (
+            "light and dark contrast, light rays, intense shadow, 1.4::warm lighting::, 1.3::backlighting::, golden hour, depth of field, blurred background",
+            "amber color palette, warm rim lighting, sunlit haze, glowing highlights, gentle cinematic contrast",
+            "golden hour color grading, radiant backlight, soft bloom, warm skin glow, atmospheric depth",
         ),
         "faces": FACES_ANIME,
-        "negative": "",
-        "skip_negative": ("flat color",),
+        "negative": "flat lighting, dull colors, cold blue lighting, muddy shadows, text",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 008", "W.O.F 009")},
     },
-    "retro": {
-        "label": "复古赛璐璐",
+    "dreamy_floral": {
+        "label": "暮光花境",
         "artist_variants": (
-            "{artist:yoshida_akihiko}, [artist:minaba_hideo], [[artist:toi8]]",
-            "[artist:yoshida_akihiko], {artist:minaba_hideo}, [artist:toi8]",
-            "[[artist:yoshida_akihiko]], [artist:minaba_hideo], {artist:toi8}",
+            "artist:ichigoyama, artist:ashima_(roro046), artist:rella, artist:onineko",
         ),
-        "style": (
-            "{{retro artstyle}}, {{1990s (style)}}, {{cel shading}}, "
-            "muted warm palette, anime screencap, hard shadow edge"
+        "positive_variants": (
+            "pastel colors, golden hour lighting, moody lighting, metallic luster, luminous floral color palette, soft dreamy illustration",
+            "rose-violet pastel palette, petal-shaped bokeh, iridescent highlights, romantic twilight glow, soft bloom",
+            "lavender dusk color grading, pearlescent light, sparkling particles, gentle contrast, ethereal illustration",
         ),
         "faces": FACES_ANIME,
-        "negative": "",
+        "negative": "harsh contrast, muddy colors, heavy black shadows, horror, text",
+        "skip_negative": ("chromatic aberration",),
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 137",)},
     },
-    "oil": {
-        "label": "厚涂油画",
-        "artist_variants": (
-            "{artist:nixeu}, [artist:quasarcake], [[artist:chiaroscuro]]",
-            "[artist:nixeu], {artist:quasarcake}, [artist:chiaroscuro]",
-            "[[artist:nixeu]], [artist:quasarcake], {artist:chiaroscuro}",
+    "pastel_chibi": {
+        "label": "粉彩无描边 Q版",
+        "artist_variants": ("",),
+        "positive_variants": (
+            "minimalism, pastel color, flat color, 1.1::no lineart::, 1.4::chibi only, super deformed, big head, small body::, clean simple shapes",
+            "soft pastel palette, lineless illustration, 1.4::chibi only, super deformed, big head, small body::, rounded shapes, minimal shading, cute graphic design",
+            "1.4::chibi only, super deformed, big head, small body::, powdery pastel coloring, no lineart, soft flat shading, clean sticker-like illustration",
         ),
-        "style": (
-            "{{oil painting (medium)}}, {{impasto}}, visible brushstrokes, "
-            "rich texture, classical palette, painterly"
+        "faces": FACES_CHIBI,
+        "negative": "normal proportions, realistic proportions, tall body, photorealistic, detailed background, heavy lineart, complex shading, character sheet, inset, text",
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 145",)},
+    },
+    "filmgrain_illustration": {
+        "label": "青雾胶片插画",
+        "artist_variants": (
+            "artist:chen_bin, 0.7::artist:fuzichoco::, 0.7::artist:reoen::, "
+            "0.6::artist:tianliang_duohe_fangdongye::, 0.5::artist:mikozin::",
+        ),
+        "positive_variants": (
+            "official art, oil painting (medium), backlighting, sidelighting, film grain, chromatic aberration, depth of field, lens flare, cinematic anime illustration",
+            "cyan mist color grading, fine film grain, soft lens bloom, cool rim lighting, atmospheric anime illustration",
+            "teal-blue palette, analog film texture, subtle chromatic aberration, diffused highlights, cinematic illustration",
         ),
         "faces": FACES_SEMIREAL,
-        "negative": "",
+        "negative": "flat lighting, simple illustration, harsh digital sharpening, muddy colors, double exposure, face in background, background portrait, split composition, collage, text",
+        "skip_negative": ("film grain", "chromatic aberration"),
+        "source": {**CODEX_ARTIST_SOURCE, "entries": ("W.O.F 172",)},
     },
 }
 
 # 数字快捷方式属于用户命令契约，必须显式固定，不能依赖字典调整后的顺序。
 PRESET_ORDER = (
-    "laowuyang",
-    "hiten",
-    "pop",
-    "ghostblade",
-    "mature",
-    "watercolor",
-    "retro",
-    "oil",
+    "iceblue",
+    "cinematic",
+    "neon_flat",
+    "glossy_mature",
+    "dark_portrait",
+    "golden_backlight",
+    "dreamy_floral",
+    "pastel_chibi",
+    "filmgrain_illustration",
 )
 
 # 常用尺寸别名，值须为 64 的倍数
@@ -489,34 +522,43 @@ def _remove_face_constraints(negative):
 
 
 def variant_count(preset_key):
-    """返回预设可遍历的画师与五官笛卡尔积数量。"""
+    """返回画师、正面画风与五官笛卡尔积数量。"""
     preset = PRESETS[preset_key]
-    return len(preset["artist_variants"]) * max(1, len(preset.get("faces") or ()))
+    return (
+        len(preset["artist_variants"])
+        * len(preset.get("positive_variants") or ("",))
+        * max(1, len(preset.get("faces") or ()))
+    )
 
 
 def pick_variant(preset_key, index=None):
-    """选出本次使用的画师串与五官变体，返回 (画师串, 五官词, 排他负面词)。
+    """选出画师、正面画风与五官变体。
 
-    index 为 None 时随机；给定整数时遍历完整组合，并保证相邻画师和五官不同。
+    返回 ``(画师串, 正面画风, 五官词, 排他负面词)``。给定 index 时遍历
+    完整笛卡尔积；随机模式在三个维度分别抽取。
     """
     preset = PRESETS[preset_key]
     artists = preset["artist_variants"]
+    positives = preset.get("positive_variants") or ("",)
     faces = preset.get("faces") or ()
 
     if index is None:
         artist = random.choice(artists)
+        positive = random.choice(positives)
         face = random.choice(faces) if faces else ("", "")
     else:
         combination = int(index) % variant_count(preset_key)
         artist_index = combination % len(artists)
+        positive_index = (combination // len(artists)) % len(positives)
         artist = artists[artist_index]
+        positive = positives[positive_index]
         if faces:
-            block = combination // len(artists)
-            face = faces[(artist_index + block) % len(faces)]
+            face_block = combination // (len(artists) * len(positives))
+            face = faces[(artist_index + positive_index + face_block) % len(faces)]
         else:
             face = ("", "")
 
-    return artist, face[0], face[1]
+    return artist, positive, face[0], face[1]
 
 
 def build_prompt(
@@ -535,7 +577,7 @@ def build_prompt(
     返回 (提示词, 五官排他负面词)，后者需交给 build_negative 一并使用。
     """
     preset = PRESETS[preset_key]
-    artists, face, face_negative = pick_variant(preset_key, index)
+    artists, positive, face, face_negative = pick_variant(preset_key, index)
 
     # 显式关闭或用户自定五官时放弃变体注入，排他负面词同样不生效。
     if not include_face or (user_text and describes_face(user_text)):
@@ -546,7 +588,7 @@ def build_prompt(
         str(custom_artist or "").strip(),
         year_tag,
         QUALITY,
-        preset["style"],
+        positive,
         face,
     ]
     if user_text:
@@ -595,6 +637,11 @@ def build_negative(
     return merged
 
 
+def preset_source(preset_key):
+    """返回画风法典来源信息，便于日志与页面追溯。"""
+    return dict(PRESETS[preset_key].get("source") or {})
+
+
 def preset_help():
     """生成预设清单文本。"""
     lines = ["可用画风预设（发送 /nai 数字 即可选择）："]
@@ -602,12 +649,15 @@ def preset_help():
     for index, key in enumerate(PRESET_ORDER, start=1):
         preset = PRESETS[key]
         count = variant_count(key)
-        lines.append(f"{index} = {preset['label']} [{key}]，{count} 种脸型组合")
+        lines.append(
+            f"{index} = {preset['label']} [{key}]，{count} 种画师/画风/脸型组合"
+        )
     lines.append("")
     lines.append("无预设：/nai 0 或 /nai 0 长发女孩")
     lines.append("只选择预设：/nai 1")
     lines.append("选择并绘图：/nai 1 长发女孩")
     lines.append("个人画师：/nai画师 添加 artist:名称")
+    lines.append("随机完整场景：/nai随机 -风格 1 -尺寸 横图（64 条构图法典）")
     lines.append("尺寸：竖图 / 方图 / 横图 / 大图，或直接写 832x1216")
-    lines.append("每次出图自动轮换画师主力与五官，想固定脸型就在描述里写五官。")
+    lines.append("每次出图轮换法典画师、正面画风与五官；/nai随机 才会注入完整场景。")
     return "\n".join(lines)

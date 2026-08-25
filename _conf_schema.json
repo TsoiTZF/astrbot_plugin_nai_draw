@@ -32,18 +32,19 @@
     "default_preset": {
         "description": "默认画风预设",
         "type": "string",
-        "hint": "管理面板选择英文键；none 表示无预设，聊天命令可使用 /nai预设 显示的数字编号。",
-        "default": "laowuyang",
+        "hint": "管理面板选择英文键；none 表示无预设，其余九个英文键对应聊天中的 1～9 号画风。",
+        "default": "iceblue",
         "options": [
             "none",
-            "laowuyang",
-            "hiten",
-            "pop",
-            "ghostblade",
-            "mature",
-            "watercolor",
-            "retro",
-            "oil"
+            "iceblue",
+            "cinematic",
+            "neon_flat",
+            "glossy_mature",
+            "dark_portrait",
+            "golden_backlight",
+            "dreamy_floral",
+            "pastel_chibi",
+            "filmgrain_illustration"
         ]
     },
     "timeout": {

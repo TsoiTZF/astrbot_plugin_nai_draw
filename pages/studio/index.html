@@ -149,17 +149,20 @@
                     <label for="artists" class="card-head-title">
                       <span>画师标签叠加</span>
                     </label>
-                    <button type="button" id="btn-random-artist" class="action-ghost-btn" title="从实测画师配方中抽取一组">随机画师串</button>
+                    <span class="card-head-hint">支持 NAI 权重括号</span>
                   </div>
-                  <div class="input-focus-frame">
-                    <input
-                      id="artists"
-                      name="artists"
-                      type="text"
-                      class="text-input-field"
-                      placeholder="例如：artist:wlop, {artist:guweiz}, 1.2::artist:fuzichoco::"
-                      autocomplete="off"
-                    />
+                  <div class="artist-input-row">
+                    <div class="input-focus-frame artist-input-frame">
+                      <input
+                        id="artists"
+                        name="artists"
+                        type="text"
+                        class="text-input-field"
+                        placeholder="例如：artist:wlop, {artist:guweiz}, 1.2::artist:fuzichoco::"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <button type="button" id="btn-random-artist" class="artist-random-btn" title="从清洗后的 367 组画师配方中抽取一组">随机画师串</button>
                   </div>
                   <div class="artist-quick-lane">
                     <button type="button" class="artist-chip-pill" data-artist="artist:wlop">+ wlop</button>
